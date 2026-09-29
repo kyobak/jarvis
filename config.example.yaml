@@ -5,10 +5,12 @@ user_name: 재원
 timezone: Asia/Seoul
 
 llm:
-  # claude_code: Claude Code CLI on your Pro/Max login (no API billing)
-  # api:         Anthropic API key in .env (billed per token)
-  # off:         local commands only (time, date, status, …)
-  backend: claude_code
+  # Frequent commands (time, date, status, …) are always handled locally for free.
+  # api:         other questions go to Claude with ANTHROPIC_API_KEY from .env (billed per token);
+  #              without a key Jarvis runs as `off`
+  # off:         local commands only
+  # claude_code: Claude Code CLI on a Pro/Max login (dev Mac only; needs macOS 13+)
+  backend: api
   default_model: claude-haiku-4-5      # api backend: command parsing, tool calls, short answers
   smart_model: claude-sonnet-5-5       # api backend: daily briefing, complex requests
   claude_code_model: haiku             # claude_code backend: alias passed to `claude --model`

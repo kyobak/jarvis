@@ -33,5 +33,6 @@
 - 2026-09-29 — TTS: `say`로 WAV를 먼저 만들고 음량 곡선을 계산한 뒤 `afplay`로 재생 → 코어 파형이 실제 목소리에 맞춰 움직임. 텍스트는 stdin으로 전달
 - 2026-09-29 — 말 끝 판정: webrtcvad(없으면 에너지 기반), 무음 0.8초. 호출어 후 5초간 말이 없으면 조용히 대기로 복귀
 - 2026-09-29 — Claude Code on 구동 기기: 불가. 문서상 macOS 13+ 필요, `@anthropic-ai/claude-code-darwin-x64` 2.1.284 실행 파일의 `LC_BUILD_VERSION minos = 13.0.0` 확인 → macOS 12에서 로드 안 됨. 구동 기기는 `api` 또는 `off`, 개발 맥은 `claude_code`
+- 2026-09-29 — (사용자 결정) 기본 백엔드를 `api`로, 단 로컬 처리가 기반: API 키가 없으면 자동으로 `off`처럼 동작하고, 키가 있어도 로컬 명령은 API를 쓰지 않음. `claude_code`는 개발 맥 전용 옵션으로 유지
 - 대기 — STT 엔진 선택: 구동 기기에서 `scripts/bench_stt.py --synth` → `--write` 결과로 결정
 - 대기 — 호출어→응답 음성 시작 지연(목표 5초): 구동 기기 로그의 `reply via … after …s`로 측정

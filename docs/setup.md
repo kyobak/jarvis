@@ -17,15 +17,22 @@
 
 ## 1. 개발 맥 (Apple Silicon)
 
-1. **uv** 설치: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-2. **Node.js LTS** 설치: https://nodejs.org 에서 macOS 설치 파일
-3. 저장소에서:
+1. **uv** 설치 (Python 패키지 관리 도구):
    ```bash
-   uv sync
-   cd ui && npm install && npm run build && cd ..
-   uv run jarvis --mock --windowed
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
-4. 모의 모드에서 `?` 키를 누르면 개발자 단축키가 나와요.
+   설치가 끝나면 **터미널 창을 닫고 새로 열거나**, 지금 창에서 `source $HOME/.local/bin/env` 를 실행하세요.
+   `uv --version` 이 버전을 출력하면 성공이에요. (`zsh: command not found: uv` 가 나오면 이 단계가 빠진 거예요.)
+2. **Node.js LTS** 설치: https://nodejs.org 에서 macOS 설치 파일 (UI 빌드용). 확인: `node --version`
+3. 저장소 폴더에서:
+   ```bash
+   uv sync --extra voice --extra stt-faster     # Python 3.12가 없으면 uv가 알아서 받아요
+   cd ui && npm install && npm run build && cd ..
+   uv run jarvis --mock --windowed              # 가짜 데이터 + 가짜 음성
+   uv run jarvis --mock --voice real --windowed # 가짜 데이터 + 실제 마이크·스피커
+   ```
+4. 모의 모드에서 `?` 키를 누르면 단축키가 나와요.
+5. 처음 `--voice real`로 실행하면 macOS가 **터미널의 마이크 접근**을 물어봐요. 허용하세요.
 
 ## 2. 책상 맥 (MacBook Air 2015, Monterey)
 
@@ -91,19 +98,20 @@ python3 scripts/measure_cpu.py --seconds 60
 
 ## 3. AI 연결 (Phase 2)
 
-자주 쓰는 명령(시간, 날짜, 상태, 인사 등)은 **AI 없이 로컬에서** 처리해서 무료이고 빨라요.
-그 밖의 질문만 Claude로 보내는데, 연결 방법은 `config.yaml`의 `llm.backend`로 고릅니다.
+자비스의 기본은 **AI 없이 로컬에서 처리하는 명령**(시간, 날짜, 상태, 인사 등)이에요. 무료이고 빨라요.
+로컬로 답할 수 없는 질문만 Claude API로 보내요. **API 키가 없으면 자동으로 `off`(로컬 명령만)로 동작**하니,
+키는 나중에 넣어도 돼요. 연결 방법은 `config.yaml`의 `llm.backend`로 바꿀 수 있어요.
 
 | `llm.backend` | 비용 | 준비물 |
 |---|---|---|
-| `claude_code` (기본) | 구독(Pro/Max) 사용량 안에서 추가 결제 없음 | Claude Code 설치 + 로그인 (3.1) |
-| `api` | 토큰당 과금 (Haiku 기준 대략 월 1–3달러) | API 키 + 크레딧 (3.2) |
+| `api` (기본) | 로컬로 못 한 질문만 토큰당 과금 (Haiku 기준 대략 월 1–3달러) | API 키 + 크레딧 (3.2). 키가 없으면 `off`처럼 동작 |
 | `off` | 무료 | 없음 — 로컬 명령만 동작 |
+| `claude_code` | 구독(Pro/Max) 사용량 안에서 추가 결제 없음 | **개발 맥 전용** (macOS 13+). Claude Code 설치 + 로그인 (3.1) |
 
 화면 오른쪽 위 상태 표시줄에 `Claude·구독` / `Claude·API` / `Claude 꺼짐`으로 보여요.
 답변 아래에는 `로컬 처리` 또는 `Claude`가 작게 표시돼서 어떤 질문이 AI를 썼는지 알 수 있어요.
 
-### 3.1 Claude Code (구독으로 쓰기)
+### 3.1 Claude Code (구독으로 쓰기, 개발 맥 전용)
 
 > ⚠️ **책상 맥(macOS 12)에서는 Claude Code가 실행되지 않아요.** Claude Code는 macOS 13 이상만 지원하고,
 > Intel용 실행 파일도 최소 macOS 13.0으로 빌드되어 있어요(2.1.284 기준 확인).
@@ -140,7 +148,7 @@ python3 scripts/measure_cpu.py --seconds 60
    ANTHROPIC_API_KEY=sk-ant-...
    ```
    `.env`는 git에 올라가지 않아요.
-5. `config.yaml`에서 `llm.backend: api`.
+5. `config.yaml`의 `llm.backend`는 기본값이 이미 `api`예요. 자비스를 다시 시작하면 상태 표시줄이 `Claude·API`로 바뀌어요.
 
 ## 4. 음성 (Phase 2)
 

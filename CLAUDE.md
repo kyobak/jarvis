@@ -24,12 +24,13 @@ Work phase by phase (§12) and stop after each phase to report.
 - UI: Vite + Svelte 5 + TypeScript, Canvas 2D + CSS/SVG. Build target `safari15`.
 - Storage: SQLite at `~/Library/Application Support/Jarvis/jarvis.db` (`JARVIS_DATA_DIR` overrides).
 - Brain: local Korean intent router first (`brain/router.py`, whole-utterance regex, free);
-  otherwise an LLM backend chosen by `llm.backend`:
-  - `claude_code` (default): `claude -p` on the user's Pro/Max login, built-in tools off, Jarvis tools
+  otherwise an LLM backend chosen by `llm.backend`. Local is the foundation; the LLM is an add-on.
+  - `api` (default): Anthropic Python SDK 1.x `AsyncAnthropic`, manual tool loop, models from
+    `llm.default_model`. With no `ANTHROPIC_API_KEY`, the app silently runs as `off`.
+  - `claude_code` (dev Mac only): `claude -p` on the user's Pro/Max login, built-in tools off, Jarvis tools
     via the stdlib MCP bridge (`brain/mcp_bridge.py` → `/api/tools`, per-run bearer token).
     Claude Code needs macOS 13+ (binary minos 13.0, verified), so it cannot run on the target:
     the target uses `api` or `off`; `claude_code` is for the dev Mac.
-  - `api`: Anthropic Python SDK 1.x `AsyncAnthropic`, manual tool loop, models from `llm.default_model`.
   - `off` / `mock`.
 - Voice: sounddevice mic (80 ms / 16 kHz frames) → openWakeWord `hey_jarvis` → webrtcvad endpointing →
   STT engine (`voice/stt/`, chosen by benchmark) → brain → `say -v Yuna` rendered to WAV + `afplay`.

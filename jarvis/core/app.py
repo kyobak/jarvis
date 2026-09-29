@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import secrets
 from typing import Any
 
@@ -81,9 +82,14 @@ class JarvisApp:
     def _make_backend(self) -> LLMBackend:
         name = self.llm_backend_name
         if name == "api":
-            from jarvis.brain.backends.api import ApiBackend
+            if not os.environ.get("ANTHROPIC_API_KEY"):
+                # Local commands are the foundation; the API is an optional add-on.
+                log.info("no ANTHROPIC_API_KEY; running with local commands only (llm off)")
+                name = "off"
+            else:
+                from jarvis.brain.backends.api import ApiBackend
 
-            return ApiBackend(self.config.llm, self.tools, self.config.user_name)
+                return ApiBackend(self.config.llm, self.tools, self.config.user_name)
         if name == "claude_code":
             from jarvis.brain.backends.claude_code import ClaudeCodeBackend, ToolBridge
 

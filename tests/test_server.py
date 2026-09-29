@@ -48,3 +48,14 @@ def test_placeholder_when_ui_not_built(mock_app, tmp_path):
         assert r.status_code == 200 and "npm run build" in r.text
         assert client.get("/api/health").json() == {"ok": True, "mock": True}
         assert "준비 중" in client.get("/auth/google").text
+
+
+def test_api_backend_falls_back_to_off_without_key(tmp_path, monkeypatch):
+    monkeypatch.setenv("JARVIS_DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    app = JarvisApp(Config(), mock=False, db_path=str(tmp_path / "j.db"), voice="mock")
+    assert app.llm_backend_name == "api" and app.brain.backend.name == "off"
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    app = JarvisApp(Config(), mock=False, db_path=str(tmp_path / "k.db"), voice="mock")
+    assert app.brain.backend.name == "api" and app.brain.backend.availability() == "ok"

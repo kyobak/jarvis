@@ -8,7 +8,8 @@
 
 ## 빠르게 실행해 보기 (개발 맥)
 
-필요한 것: [uv](https://docs.astral.sh/uv/), Node.js LTS ([nodejs.org](https://nodejs.org))
+필요한 것: [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh` 후 터미널 새로 열기),
+Node.js LTS ([nodejs.org](https://nodejs.org))
 
 ```bash
 uv sync
@@ -17,15 +18,16 @@ uv run jarvis --mock            # 전체화면, 전부 가짜 (종료: ⌘Q)
 uv run jarvis --mock --windowed # 창 모드
 ```
 
-실제 마이크·스피커와 구독 Claude로 대화해 보려면 ([docs/setup.md](docs/setup.md) 3·4장):
+실제 마이크·스피커로 대화해 보려면 ([docs/setup.md](docs/setup.md) 3·4장):
 
 ```bash
 uv sync --extra voice --extra stt-faster
-uv run jarvis --mock --voice real --llm claude_code --windowed
+uv run jarvis --mock --voice real --windowed
 ```
 
-"헤이 자비스, 지금 몇 시야?"처럼 자주 쓰는 명령은 AI 없이 바로 답하고,
-그 밖의 질문만 Claude로 보내요. 답변 아래의 `로컬 처리` / `Claude` 표시로 구분돼요.
+"헤이 자비스, 지금 몇 시야?"처럼 자주 쓰는 명령은 AI 없이 바로 답해요(기본).
+`.env`에 `ANTHROPIC_API_KEY`를 넣으면 로컬로 못 한 질문만 Claude API로 보내요. 키가 없으면 로컬 명령만 동작해요.
+답변 아래의 `로컬 처리` / `Claude` 표시로 구분돼요.
 
 브라우저로만 보고 싶다면 `uv run jarvis --mock --no-window` 후 http://127.0.0.1:8765 를 여세요.
 

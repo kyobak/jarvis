@@ -51,8 +51,9 @@ STTEngineName = Literal["auto", "faster_whisper", "whisper_cpp", "apple", "mock"
 
 
 class LLMConfig(BaseModel):
-    # claude_code: `claude -p` on the user's Pro/Max login; api: Anthropic API key; off: local intents only.
-    backend: LLMBackendName = "claude_code"
+    # api: Anthropic API key (falls back to off when no key is set);
+    # claude_code: `claude -p` on a Pro/Max login (macOS 13+); off: local intents only.
+    backend: LLMBackendName = "api"
     default_model: str = "claude-haiku-4-5"
     smart_model: str = "claude-sonnet-5-5"
     claude_code_model: str = "haiku"
