@@ -9,30 +9,29 @@ import asyncio
 import math
 import random
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from jarvis.core.config import Config
-from jarvis.core.event_bus import EventBus
-from jarvis.core.status import StatusBoard
 from jarvis.core.timeutil import epoch_ms, iso
 from jarvis.mocks import data
+
+if TYPE_CHECKING:
+    from jarvis.core.app import JarvisApp
 
 CORE_STATES = ("idle", "listening", "thinking", "speaking", "alert", "offline")
 
 
 class MockWorld:
-    def __init__(self, config: Config, bus: EventBus, status: StatusBoard) -> None:
-        self.config = config
-        self.bus = bus
-        self.status = status
-        self.tz = config.tz
+    def __init__(self, app: "JarvisApp") -> None:
+        self.app = app
+        self.config = app.config
+        self.bus = app.bus
+        self.status = app.status
+        self.announcer = app.announcer
+        self.tz = app.config.tz
         self._tasks: list[asyncio.Task] = []
         self._alert_seq = 0
 
         now = self.now()
-        self.schedule = data.schedule(now)
-        self.calendar_offline = False
-        self.reminders = data.reminders(now)
         self.messages = data.messages(now)
         self.track_index = 0
         self.is_playing = True
@@ -62,8 +61,7 @@ class MockWorld:
 
     async def publish_all(self) -> None:
         await self.publish_status()
-        await self.publish_schedule()
-        await self.publish_reminders()
+        await self.app.calendar.set_events(data.schedule(self.now()))
         await self.publish_messages()
         await self.publish_now_playing()
         await self.publish_focus()
@@ -75,22 +73,12 @@ class MockWorld:
         await self.status.update(
             camera="mock",
             integrations={
-                "calendar": "offline" if self.calendar_offline else "ok",
+                "calendar": "ok",
                 "gmail": self.messages["gmail"]["auth"],
                 "slack": self.messages["slack"]["auth"],
                 "spotify": "ok",
             },
         )
-
-    async def publish_schedule(self) -> None:
-        await self.bus.publish(
-            "schedule",
-            {"events": self.schedule, "synced_at": iso(self.now()), "offline": self.calendar_offline},
-        )
-
-    async def publish_reminders(self) -> None:
-        items = sorted(self.reminders, key=lambda r: r["when"])
-        await self.bus.publish("reminders", {"items": items})
 
     async def publish_messages(self) -> None:
         payload = {}
@@ -181,14 +169,10 @@ class MockWorld:
         await self.publish_messages()
 
     async def alert(self, kind: str, level: int, title: str, body: str = "") -> None:
-        self._alert_seq += 1
-        await self.bus.publish(
-            "alert",
-            {"id": self._alert_seq, "kind": kind, "level": level, "title": title, "body": body, "active": True},
-        )
+        await self.announcer.notify(kind, title, body, say=title, level=level, force_voice=kind == "drowsy")
 
     async def clear_alert(self) -> None:
-        await self.bus.publish("alert", {"id": self._alert_seq, "active": False})
+        await self.announcer.clear()
 
     async def toggle_focus(self) -> None:
         if self.focus_session:
@@ -218,8 +202,7 @@ class MockWorld:
             # Visual check only: bypasses the state machine until the next real change.
             await self.bus.publish("state", {"core": value})
         elif action == "reminder":
-            item = self.reminders[0] if self.reminders else {"message": "빨래 꺼내기"}
-            await self.alert("reminder", 1, f"지금은 {item['message']} 할 차례예요.")
+            await self.alert("reminder", 1, "지금은 빨래 꺼내기 할 차례예요.")
         elif action == "event":
             await self.alert("event", 1, "10분 뒤 UMC 스터디", "준비물: 발표 자료")
         elif action == "drowsy":
@@ -236,9 +219,7 @@ class MockWorld:
             await self.publish_messages()
             await self.publish_status()
         elif action == "calendar_offline":
-            self.calendar_offline = not self.calendar_offline
-            await self.publish_schedule()
-            await self.publish_status()
+            await self.app.calendar.set_offline(not self.app.calendar.offline)
         elif action == "focus":
             await self.toggle_focus()
         elif action == "next_track":
@@ -246,5 +227,3 @@ class MockWorld:
         elif action == "toggle_play":
             await self.toggle_play()
 
-    async def handle_alert_ack(self) -> None:
-        await self.clear_alert()

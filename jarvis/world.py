@@ -18,10 +18,8 @@ class LiveWorld:
     async def start(self) -> None:
         await self.status.update(
             camera="off",
-            integrations={"calendar": "disabled", "gmail": "disabled", "slack": "disabled", "spotify": "disabled"},
+            integrations={"gmail": "disabled", "slack": "disabled", "spotify": "disabled"},
         )
-        await self.bus.publish("schedule", {"events": [], "synced_at": None, "offline": False})
-        await self.bus.publish("reminders", {"items": []})
         await self.bus.publish(
             "messages",
             {
@@ -38,6 +36,3 @@ class LiveWorld:
     async def handle_dev(self, action: str, value: Any = None) -> None:
         if action == "state":
             await self.bus.publish("state", {"core": value})
-
-    async def handle_alert_ack(self) -> None:
-        await self.bus.publish("alert", {"active": False})

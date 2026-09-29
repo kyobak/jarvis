@@ -66,7 +66,8 @@ def test_bridge_end_to_end(live_server):
     assert [m["id"] for m in out] == [1, 2, 3, 4]  # the notification got no reply
     assert out[0]["result"]["protocolVersion"] == "2025-06-18"
     tools = out[1]["result"]["tools"]
-    assert [t["name"] for t in tools] == ["get_status"]
+    names = [t["name"] for t in tools]
+    assert names[0] == "get_status" and "create_reminder" in names
     assert tools[0]["inputSchema"]["additionalProperties"] is False
     call = out[2]["result"]
     assert call["isError"] is False

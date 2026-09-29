@@ -7,11 +7,11 @@ import logging
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable
+from typing import Callable, Protocol
 
 from jarvis.brain.backends.base import LLMBackend, LLMError, LLMRetryableError
 from jarvis.brain.context import Context
-from jarvis.brain.router import IntentRouter, strip_wake
+from jarvis.brain.router import IntentRouter, squash, strip_wake
 from jarvis.core.config import Config
 from jarvis.core.db import Database
 from jarvis.core.state import StateStore
@@ -21,6 +21,12 @@ log = logging.getLogger(__name__)
 
 LIMIT_REACHED = "오늘 AI 사용량을 다 썼어요. 시간이나 날짜 같은 기본 명령은 계속 쓸 수 있어요."
 RETRY_DELAY_SEC = 1.0
+
+
+class LocalHandler(Protocol):
+    """A skill's local fast path: returns the reply, or None if the utterance is not for it."""
+
+    async def handle(self, text: str, key: str, ctx: Context) -> str | None: ...
 
 
 @dataclass(frozen=True)
@@ -50,6 +56,10 @@ class Brain:
         self.clock = clock or (lambda: datetime.now(config.tz))
         self._last_llm_at = 0.0
         self._lock = asyncio.Lock()
+        self.handlers: list[tuple[str, LocalHandler]] = []
+
+    def add_handler(self, name: str, handler: LocalHandler) -> None:
+        self.handlers.append((name, handler))
 
     def context(self) -> Context:
         personal = self.config.llm.personal_data_allowed(self.backend.name)
@@ -78,6 +88,13 @@ class Brain:
         if local is not None:
             log.info("local intent %s", local.intent)
             return Reply(local.text, "local", local.intent)
+
+        key = squash(text)
+        for name, handler in self.handlers:
+            answer = await handler.handle(text, key, ctx)
+            if answer is not None:
+                log.info("local skill %s", name)
+                return Reply(answer, "local", name)
 
         async with self._lock:  # one LLM conversation at a time
             return await self._ask_llm(text, ctx)

@@ -50,7 +50,9 @@ def envelope(path: Path) -> list[float]:
 class TTS(Protocol):
     name: str
 
-    async def speak(self, text: str, on_level: LevelFn) -> None: ...
+    async def speak(self, text: str, on_level: LevelFn, sound: str | None = None) -> None:
+        """Speak `text`; `sound` names a macOS system sound played first (e.g. "Glass")."""
+        ...
 
     async def stop(self) -> None: ...
 
@@ -67,8 +69,10 @@ class SayTTS:
     def available() -> bool:
         return bool(shutil.which("say") and shutil.which("afplay"))
 
-    async def speak(self, text: str, on_level: LevelFn) -> None:
+    async def speak(self, text: str, on_level: LevelFn, sound: str | None = None) -> None:
         text = speakable(text)
+        if sound:
+            await self.chime(sound)
         if not text:
             return
         with tempfile.TemporaryDirectory(prefix="jarvis-tts-") as tmp:
@@ -100,6 +104,13 @@ class SayTTS:
                 await on_level(0.0)
                 self._player = None
 
+    async def chime(self, sound: str) -> None:
+        path = Path(f"/System/Library/Sounds/{sound}.aiff")
+        if not path.exists():
+            return
+        proc = await asyncio.create_subprocess_exec("afplay", str(path))
+        await proc.wait()
+
     async def stop(self) -> None:
         if self._player and self._player.returncode is None:
             self._player.terminate()
@@ -114,7 +125,7 @@ class MockTTS:
         self.sec_per_char = sec_per_char
         self._stopped = asyncio.Event()
 
-    async def speak(self, text: str, on_level: LevelFn) -> None:
+    async def speak(self, text: str, on_level: LevelFn, sound: str | None = None) -> None:
         text = speakable(text)
         self._stopped.clear()
         duration = 0.4 + len(text) * self.sec_per_char

@@ -58,13 +58,13 @@ def schedule(now: datetime) -> list[dict]:
     return out
 
 
-def reminders(now: datetime) -> list[dict]:
-    laundry = (now + timedelta(minutes=25)).replace(second=0, microsecond=0)
+async def seed_reminders(service, now: datetime) -> None:
+    """Demo reminders for mock mode (its database is in memory)."""
+    if service.pending():
+        return
+    await service.create((now + timedelta(minutes=25)).replace(second=0, microsecond=0), "빨래 꺼내기")
     bedtime = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    return [
-        {"id": 1, "message": "빨래 꺼내기", "when": iso(laundry), "repeat": None},
-        {"id": 2, "message": "잘 준비하기", "when": iso(bedtime), "repeat": "매일"},
-    ]
+    await service.create(bedtime, "잘 준비", "daily")
 
 
 def messages(now: datetime) -> dict:

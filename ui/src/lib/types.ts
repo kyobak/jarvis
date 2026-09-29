@@ -27,6 +27,7 @@ export interface CalendarEvent {
   start: string;
   end: string;
   calendar: string;
+  all_day?: boolean;
 }
 
 export interface Schedule {

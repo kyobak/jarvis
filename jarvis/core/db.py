@@ -53,7 +53,11 @@ CREATE TABLE IF NOT EXISTS llm_usage (
 );
 """
 
-MIGRATIONS = [SCHEMA_V1]
+SCHEMA_V2 = """
+ALTER TABLE events_cache ADD COLUMN all_day INTEGER NOT NULL DEFAULT 0;
+"""
+
+MIGRATIONS = [SCHEMA_V1, SCHEMA_V2]
 
 
 class Database:

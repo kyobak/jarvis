@@ -10,7 +10,8 @@ import asyncio
 import logging
 import math
 import time
-from typing import Callable
+from collections import deque
+from typing import Awaitable, Callable
 
 from jarvis.brain.brain import Brain
 from jarvis.core.config import VoiceConfig
@@ -84,6 +85,10 @@ class VoiceLoop:
         self._task: asyncio.Task | None = None
         self._turn: asyncio.Task | None = None
         self._stt_lock = asyncio.Lock()
+        self._announcements: deque[tuple[str, str | None]] = deque()
+        # Called around every spoken reply (e.g. to lower Spotify's volume).
+        self.on_speech_start: list[Callable[[], Awaitable[None]]] = []
+        self.on_speech_end: list[Callable[[], Awaitable[None]]] = []
 
     def _real_capture(self) -> RealCapture:
         return RealCapture(
@@ -153,6 +158,14 @@ class VoiceLoop:
         self._turn = asyncio.create_task(self._respond(text, time.monotonic()))
         return True
 
+    async def announce(self, text: str, sound: str | None = "Glass") -> None:
+        """Proactive speech (reminders, alerts): now if idle, else after the current turn."""
+        if self.phase != "idle":
+            self._announcements.append((text, sound))
+            return
+        self.phase = "speaking"
+        self._turn = asyncio.create_task(self._speak(text, sound=sound))
+
     async def _begin_listening(self, source: str) -> None:
         self._trigger_source = source
         self._capture = self.capture_factory()
@@ -220,7 +233,7 @@ class VoiceLoop:
             log.exception("voice turn failed")
             await self._finish()
 
-    async def _speak(self, text: str, announce: bool = True) -> None:
+    async def _speak(self, text: str, announce: bool = True, sound: str | None = None) -> None:
         if announce:
             await self.bus.publish("transcript", {"role": "jarvis", "text": text, "final": True, "source": "local"})
         self.phase = "speaking"
@@ -230,12 +243,25 @@ class VoiceLoop:
             await self.bus.publish("level", {"v": v})
 
         try:
-            await self.tts.speak(text, level)
+            await self._run_hooks(self.on_speech_start)
+            await self.tts.speak(text, level, sound)
         finally:
+            await self._run_hooks(self.on_speech_end)
             await self._finish()
+
+    @staticmethod
+    async def _run_hooks(hooks: list[Callable[[], Awaitable[None]]]) -> None:
+        for hook in hooks:
+            try:
+                await hook()
+            except Exception:
+                log.exception("speech hook failed")
 
     async def _finish(self) -> None:
         if self.wake is not None:
             self.wake.reset()
         self.phase = "idle"
         await self.core.set_voice("idle")
+        if self._announcements:
+            text, sound = self._announcements.popleft()
+            await self.announce(text, sound)

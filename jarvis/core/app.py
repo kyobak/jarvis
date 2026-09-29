@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import secrets
+from datetime import datetime
 from typing import Any
 
 from jarvis.brain.backends.base import LLMBackend
@@ -14,9 +15,16 @@ from jarvis.brain.tools import Tool, ToolRegistry, schema
 from jarvis.core.config import Config, default_data_dir
 from jarvis.core.core_state import CoreStateMachine
 from jarvis.core.db import Database
+from jarvis.core.announcer import Announcer
 from jarvis.core.event_bus import EventBus
+from jarvis.core.presence import Presence
+from jarvis.core.settings import Settings
 from jarvis.core.state import StateStore
+from jarvis.core.secrets import SecretStore
 from jarvis.core.status import StatusBoard
+from jarvis.integrations.oauth import OAuthClient
+from jarvis.skills.calendar import CalendarService
+from jarvis.skills.reminders import ReminderService
 
 log = logging.getLogger(__name__)
 
@@ -47,25 +55,73 @@ class JarvisApp:
 
         self.bus = EventBus()
         self.store = StateStore(self.bus)
-        self.db = Database(db_path or default_data_dir() / "jarvis.db")
+        # Mock runs never touch the real database (reminders, focus history, usage).
+        self.db = Database(db_path or (":memory:" if mock else default_data_dir() / "jarvis.db"))
         self.status = StatusBoard(self.bus, mock=mock, dev=self.dev, user_name=config.user_name)
         self.core = CoreStateMachine(self.bus)
+        self.settings = Settings(self.bus, config, None if mock else default_data_dir() / "settings.json")
+        self.presence = Presence(self.bus)
+        self.announcer = Announcer(self.bus, self.settings, self.presence, self.clock)
         self.tool_token = secrets.token_urlsafe(24)
         self.tools = ToolRegistry()
         self._register_tools()
 
-        self.brain = Brain(config, self.store, self.db, self.status, self._make_backend())
+        self.brain = Brain(config, self.store, self.db, self.status, self._make_backend(), clock=self.clock)
+
+        self.reminders = ReminderService(self.db, self.bus, self.announcer, self.clock)
+        self.reminders.register_tools(self.tools)
+        self.brain.add_handler("reminders", self.reminders)
+
+        # Integrations: one HTTP client, tokens in the Keychain, OAuth via /auth/<name>.
+        import httpx2
+
+        self.http = httpx2.AsyncClient(timeout=20)
+        data_dir = default_data_dir()
+        self.secrets = SecretStore(None if mock else data_dir / "secrets.json", use_keyring=not mock)
+        self.oauth: dict[str, OAuthClient] = {}
+        redirect = f"http://{config.server.host}:{config.server.port}/callback"
+        google = None
+        if not mock:
+            from jarvis.integrations.google import make_google_oauth
+
+            google = make_google_oauth(data_dir / "google_client_secret.json", self.secrets, self.http, f"{redirect}/google")
+            if google:
+                self.oauth["google"] = google
+        self.calendar = CalendarService(
+            self.db, self.bus, self.status, self.announcer, self.presence, self.settings, self.clock,
+            source=self._calendar_source() if google and google.has_token() else None,
+            configured=google is not None,
+        )
+        self.brain.add_handler("calendar", self.calendar)
+        self.personal_ok = config.llm.personal_data_allowed(self.brain.backend.name)
+        if self.personal_ok:
+            self.calendar.register_tools(self.tools)
 
         if mock:
             from jarvis.mocks.world import MockWorld
 
-            self.world = MockWorld(config, self.bus, self.status)
+            self.world = MockWorld(self)
         else:
             from jarvis.world import LiveWorld
 
             self.world = LiveWorld(config, self.bus, self.status)
 
         self.voice = self._make_voice() if enable_voice else None
+        if self.voice:
+            self.announcer.speaker = self.voice.announce
+
+    def clock(self) -> datetime:
+        return datetime.now(self.config.tz)
+
+    def _calendar_source(self):
+        from jarvis.integrations.google import GoogleCalendarSource
+
+        return GoogleCalendarSource(self.oauth["google"], self.config.calendar.google_calendar_ids, self.config.tz)
+
+    async def oauth_connected(self, name: str) -> None:
+        """A provider finished its browser flow: start the integrations that use it."""
+        if name == "google":
+            await self.calendar.connected(self._calendar_source())
 
     # ---- construction helpers -------------------------------------------------
 
@@ -153,6 +209,13 @@ class JarvisApp:
         )
         await self.status.publish()
         await self.core.publish_current()
+        await self.settings.publish()
+        await self.reminders.start()
+        if self.mock:
+            from jarvis.mocks.data import seed_reminders
+
+            await seed_reminders(self.reminders, self.clock())
+        await self.calendar.start(mock=self.mock)
         await self.world.start()
         await self.brain.publish_usage()
         if self.brain.backend.availability() == "error":
@@ -166,7 +229,10 @@ class JarvisApp:
     async def stop(self) -> None:
         if self.voice:
             await self.voice.stop()
+        await self.reminders.stop()
+        await self.calendar.stop()
         await self.world.stop()
+        await self.http.aclose()
         self.db.close()
 
     async def handle_client(self, message: dict[str, Any]) -> None:
@@ -181,7 +247,13 @@ class JarvisApp:
             if text and self.voice:
                 await self.voice.say_text(text)
         elif kind == "alert_ack":
-            await self.world.handle_alert_ack()
+            await self.announcer.clear(payload.get("id"))
+        elif kind == "reminder_cancel":
+            await self.reminders.cancel(int(payload.get("id", 0)))
+        elif kind == "settings":
+            changes = payload.get("changes")
+            if isinstance(changes, dict):
+                await self.settings.update(changes)
         elif kind == "dev":
             if not self.dev:
                 log.warning("ignoring dev command outside dev mode")

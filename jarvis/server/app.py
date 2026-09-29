@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import json
 import logging
 import secrets
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import Body, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from jarvis.core.app import JarvisApp
@@ -71,14 +72,38 @@ def create_app(jarvis: JarvisApp, ui_dist: Path = UI_DIST) -> FastAPI:
         content, is_error = await jarvis.tools.call(name, body.get("arguments") or {})
         return {"content": content, "is_error": is_error}
 
-    @app.get("/auth/{provider}", response_class=HTMLResponse)
-    async def auth(provider: str) -> str:
-        names = {"google": "Google", "spotify": "Spotify", "slack": "Slack"}
+    names = {"google": "Google (캘린더·Gmail)", "spotify": "Spotify", "slack": "Slack"}
+    setup_hint = {
+        "google": "Google Cloud에서 받은 OAuth 클라이언트 JSON을 "
+        "<code>~/Library/Application Support/Jarvis/google_client_secret.json</code> 에 저장한 뒤 자비스를 다시 시작하세요.",
+        "spotify": "<code>.env</code>에 <code>SPOTIFY_CLIENT_ID</code>를 넣고 자비스를 다시 시작하세요.",
+        "slack": "Slack은 브라우저 연결 대신 <code>.env</code>의 <code>SLACK_USER_TOKEN</code>으로 연결해요.",
+    }
+
+    @app.get("/auth/{provider}", response_model=None)
+    async def auth(provider: str) -> HTMLResponse | RedirectResponse:
+        client = jarvis.oauth.get(provider)
         name = names.get(provider, provider)
-        return _PLACEHOLDER.format(
-            title=f"{name} 연결",
-            body="이 연동은 아직 준비 중이에요. 다음 단계에서 인증 흐름이 추가됩니다.",
-        )
+        if client is None:
+            hint = setup_hint.get(provider, "알 수 없는 연동이에요.")
+            return HTMLResponse(_PLACEHOLDER.format(title=f"{name} 연결 준비가 필요해요", body=f"{hint}<br>자세한 순서는 docs/setup.md 에 있어요."))
+        return RedirectResponse(client.authorize_url())
+
+    @app.get("/callback/{provider}", response_class=HTMLResponse)
+    async def callback(provider: str, code: str = "", state: str = "", error: str = "") -> str:
+        client = jarvis.oauth.get(provider)
+        name = names.get(provider, provider)
+        if client is None:
+            raise HTTPException(status_code=404)
+        if error or not code:
+            return _PLACEHOLDER.format(title=f"{name} 연결이 취소됐어요", body=f"사유: {html.escape(error or '코드 없음')}. 다시 시도해 주세요.")
+        try:
+            await client.exchange(code, state)
+        except Exception as e:  # show a readable page instead of a stack trace
+            log.warning("oauth %s failed: %s", provider, e)
+            return _PLACEHOLDER.format(title=f"{name} 연결에 실패했어요", body="잠시 후 자비스 화면의 '다시 연결'을 다시 눌러 주세요.")
+        await jarvis.oauth_connected(provider)
+        return _PLACEHOLDER.format(title=f"{name} 연결 완료", body="이 창은 닫아도 돼요. 자비스 화면이 곧 새 정보로 바뀌어요.")
 
     @app.websocket("/ws")
     async def ws(socket: WebSocket) -> None:

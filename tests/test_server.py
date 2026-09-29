@@ -47,7 +47,7 @@ def test_placeholder_when_ui_not_built(mock_app, tmp_path):
         r = client.get("/")
         assert r.status_code == 200 and "npm run build" in r.text
         assert client.get("/api/health").json() == {"ok": True, "mock": True}
-        assert "준비 중" in client.get("/auth/google").text
+        assert "google_client_secret.json" in client.get("/auth/google").text
 
 
 def _app(tmp_path, name, backend=None):

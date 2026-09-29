@@ -16,6 +16,8 @@ STICKY_TYPES = (
     "now_playing",
     "focus",
     "drowsiness",
+    "settings",
+    "presence",
 )
 
 

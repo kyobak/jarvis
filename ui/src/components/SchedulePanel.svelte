@@ -14,8 +14,11 @@
 
   const rows = $derived.by((): Row[] => {
     const now = clock.now;
-    const events = [...(app.schedule?.events ?? [])].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
-    const out: Row[] = [];
+    const all = [...(app.schedule?.events ?? [])].sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    const out: Row[] = all
+      .filter((e) => e.all_day)
+      .map((e) => ({ kind: "event" as const, id: e.id, time: "종일", title: e.title, phase: "later" as const, note: "" }));
+    const events = all.filter((e) => !e.all_day);
     let markerPlaced = false;
     // Keep the most recent past event for context, then everything ahead.
     const firstFuture = events.findIndex((e) => Date.parse(e.end) > now || Date.parse(e.start) > now);
@@ -38,7 +41,9 @@
   });
 
   const offline = $derived(app.schedule?.offline ?? false);
-  const disabled = $derived(app.status?.integrations.calendar === "disabled");
+  const link = $derived(app.status?.integrations.calendar);
+  const disabled = $derived(link === "disabled");
+  const expired = $derived(link === "expired");
 </script>
 
 <Panel title="오늘 일정" tone={offline ? "warn" : "normal"} {booting} {delay} grow>
@@ -50,8 +55,14 @@
     {/if}
   {/snippet}
 
+  {#if expired}
+    <div class="reauth">
+      <span>Google 캘린더 {app.schedule?.synced_at ? "다시 " : ""}연결 필요</span>
+      <a class="btn" href="/auth/google" target="_blank">연결하기</a>
+    </div>
+  {/if}
   {#if disabled}
-    <p class="empty">캘린더가 연결되지 않았어요.<br /><a href="/auth/google" target="_blank">Google 캘린더 연결</a></p>
+    <p class="empty">캘린더가 연결되지 않았어요.<br /><a href="/auth/google" target="_blank">연결 방법 보기</a></p>
   {:else}
     <ol class="timeline">
       {#each rows as row (row.kind === "now" ? "now" : row.id)}
@@ -166,6 +177,24 @@
 
   .warn {
     color: var(--ember);
+  }
+  .reauth {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding: 9px 12px;
+    border: 1px solid rgba(255, 181, 71, 0.7);
+    background: rgba(255, 181, 71, 0.07);
+    color: var(--ember);
+    font-size: 13.5px;
+  }
+  .btn {
+    padding: 3px 10px;
+    border: 1px solid var(--ember);
+    color: var(--ember);
+    font-size: 12.5px;
+    text-decoration: none;
   }
   .empty {
     margin: 4px 0 0;

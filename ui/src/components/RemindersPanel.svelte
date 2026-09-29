@@ -1,6 +1,6 @@
 <script lang="ts">
   import { clock } from "../lib/clock.svelte";
-  import { app } from "../lib/store.svelte";
+  import { app, send } from "../lib/store.svelte";
   import { hhmm } from "../lib/time";
   import Panel from "./Panel.svelte";
 
@@ -35,7 +35,10 @@
             <span class="tag">{r.repeat}</span>
           {:else if dayLabel(r.when)}
             <span class="tag muted">{dayLabel(r.when)}</span>
+          {:else}
+            <span></span>
           {/if}
+          <button class="x" aria-label="{r.message} 취소" onclick={() => send("reminder_cancel", { id: r.id })}>×</button>
         </li>
       {/each}
     </ul>
@@ -50,7 +53,7 @@
   }
   li {
     display: grid;
-    grid-template-columns: 52px 1fr auto;
+    grid-template-columns: 52px 1fr auto 18px;
     align-items: center;
     gap: 6px;
     min-height: 30px;
@@ -71,6 +74,19 @@
   .tag.muted {
     border-color: transparent;
     color: var(--frost-3);
+  }
+  .x {
+    color: var(--tide);
+    font-size: 15px;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity 0.2s, color 0.2s;
+  }
+  li:hover .x {
+    opacity: 1;
+  }
+  .x:hover {
+    color: var(--ember);
   }
   .empty {
     margin: 0;
