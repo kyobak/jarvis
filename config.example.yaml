@@ -1,0 +1,46 @@
+# Copy to config.yaml and edit. config.yaml is gitignored.
+# Secrets (API keys, tokens) never go here — use .env or the macOS keychain.
+
+user_name: 재원
+timezone: Asia/Seoul
+
+llm:
+  default_model: claude-haiku-4-5      # command parsing, tool calls, short answers
+  smart_model: claude-sonnet-5-5       # daily briefing, complex requests
+  max_tokens: 300
+  daily_token_limit: 200000
+
+voice:
+  wake_word: hey_jarvis
+  tts_voice: Yuna
+  stt_engine: auto        # decided by scripts/bench_stt.py (Phase 2)
+
+vision:
+  camera_index: 0
+  greet_after_absence_min: 10
+  drowsy_ear_ratio: 0.75
+  drowsy_seconds: 2.5
+  active_hours: "09:00-02:00"
+
+quiet_hours: "02:00-08:00"
+
+calendar:
+  google_calendar_ids: [primary]
+  pre_alert_min: 10
+
+spotify:
+  aliases:
+    공부: "spotify:playlist:XXXX"
+    기상: "spotify:playlist:YYYY"
+
+messages:
+  gmail_poll_min: 5
+  slack_poll_min: 3
+
+server:
+  host: 127.0.0.1
+  port: 8765
+
+ui:
+  fullscreen: true
+  target_fps: 30

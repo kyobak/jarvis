@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+build/
+
+# Secrets and local config
+.env
+config.yaml
+
+# UI
+ui/node_modules/
+ui/dist/
+ui/public/fonts/*.woff2
+
+# OS / logs
+.DS_Store
+*.log
+.check-venv/
