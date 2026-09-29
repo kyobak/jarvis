@@ -32,13 +32,17 @@ class JarvisApp:
         voice: str | None = None,
         llm: str | None = None,
         stt: str | None = None,
+        vision: str | None = None,
         enable_voice: bool = True,
     ) -> None:
         self.config = config
         self.mock = mock
         self.dev = dev or mock
         self.voice_mode = voice or ("mock" if mock else "real")
-        self.llm_backend_name = llm or ("mock" if mock else config.llm.backend)
+        # --mock fakes hardware and integrations; the AI stays whatever config says
+        # (it falls back to `off` without a key).
+        self.llm_backend_name = llm or config.llm.backend
+        self.vision_mode = vision or ("mock" if mock else "real")
         self.stt_name = stt or ("mock" if self.voice_mode == "mock" else config.voice.stt_engine)
 
         self.bus = EventBus()

@@ -41,7 +41,7 @@ stt-cpp = [
 stt-apple = ["pyobjc-framework-Speech>=10; sys_platform == 'darwin'"]
 
 [project.scripts]
-jarvis = "jarvis.main:main"
+jarvis = "jarvis.main:run"
 
 [dependency-groups]
 dev = [

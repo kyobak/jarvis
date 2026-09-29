@@ -32,6 +32,9 @@ Claude API나 다른 무료 서비스로도 바꿀 수 있어요 ([docs/setup.md
 
 브라우저로만 보고 싶다면 `uv run jarvis --mock --no-window` 후 http://127.0.0.1:8765 를 여세요.
 
+자비스는 한 번에 하나만 실행돼요. 이미 켜져 있으면 새로 실행할 때 기존 것을 종료하고 다시 시작해요.
+직접 끄려면 `uv run jarvis stop`. 로그는 `~/Library/Logs/Jarvis/jarvis.log`에 남아요.
+
 ## 조작
 
 | 키 | 동작 |
