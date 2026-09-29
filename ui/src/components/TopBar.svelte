@@ -29,9 +29,15 @@
       { label: "Gmail", tone: tone(i.gmail) },
       { label: "Slack", tone: tone(i.slack) },
       { label: "Spotify", tone: tone(i.spotify) },
-      { label: "Claude", tone: tone(i.claude) },
+      { label: CLAUDE_LABEL[st.llm.backend ?? ""] ?? "Claude", tone: tone(i.claude) },
     ];
   });
+
+  const CLAUDE_LABEL: Record<string, string> = {
+    claude_code: "Claude·구독",
+    api: "Claude·API",
+    off: "Claude 꺼짐",
+  };
 
   const drowsy = $derived(app.drowsiness);
 </script>

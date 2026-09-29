@@ -29,6 +29,7 @@ export const app = $state({
   transcriptAt: 0,
   /** Message ids that arrived after the first snapshot; used for a one-shot highlight. */
   freshIds: [] as string[],
+  commandOpen: false,
 });
 
 /** The core's visible state: a lost server connection overrides everything. */

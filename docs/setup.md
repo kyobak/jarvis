@@ -5,9 +5,10 @@
 
 | 준비물 | 필요한 Phase |
 |---|---|
-| 개발 맥 환경 | 지금 (Phase 0–1) |
-| 책상 맥 환경 + 호환성 체크 | 지금 (Phase 0–1) |
-| Claude API 키 | Phase 2 |
+| 개발 맥 환경 | Phase 0–1 |
+| 책상 맥 환경 + 호환성 체크 | Phase 0–1 |
+| AI 연결 (Claude Code 구독 또는 API 키, 선택) | Phase 2 |
+| 음성 패키지 + STT 벤치마크 | Phase 2 |
 | Google Cloud OAuth (캘린더·Gmail) | Phase 3, 5 |
 | Spotify 개발자 앱 | Phase 5 |
 | Slack 앱 | Phase 5 |
@@ -88,7 +89,47 @@ python3 scripts/measure_cpu.py --seconds 60
 
 ---
 
-## 3. Claude API 키 (Phase 2)
+## 3. AI 연결 (Phase 2)
+
+자주 쓰는 명령(시간, 날짜, 상태, 인사 등)은 **AI 없이 로컬에서** 처리해서 무료이고 빨라요.
+그 밖의 질문만 Claude로 보내는데, 연결 방법은 `config.yaml`의 `llm.backend`로 고릅니다.
+
+| `llm.backend` | 비용 | 준비물 |
+|---|---|---|
+| `claude_code` (기본) | 구독(Pro/Max) 사용량 안에서 추가 결제 없음 | Claude Code 설치 + 로그인 (3.1) |
+| `api` | 토큰당 과금 (Haiku 기준 대략 월 1–3달러) | API 키 + 크레딧 (3.2) |
+| `off` | 무료 | 없음 — 로컬 명령만 동작 |
+
+화면 오른쪽 위 상태 표시줄에 `Claude·구독` / `Claude·API` / `Claude 꺼짐`으로 보여요.
+답변 아래에는 `로컬 처리` 또는 `Claude`가 작게 표시돼서 어떤 질문이 AI를 썼는지 알 수 있어요.
+
+### 3.1 Claude Code (구독으로 쓰기)
+
+> ⚠️ **책상 맥(macOS 12)에서는 Claude Code가 실행되지 않아요.** Claude Code는 macOS 13 이상만 지원하고,
+> Intel용 실행 파일도 최소 macOS 13.0으로 빌드되어 있어요(2.1.284 기준 확인).
+> 개발 맥(Apple Silicon)에서는 문제없이 쓸 수 있어요. 책상 맥에서는 다음 중 하나를 고르세요.
+> - `api`: 소액 과금 (3.2). 로컬 명령이 대부분을 처리해서 월 1–3달러 수준 예상
+> - `off`: 무료, 로컬 명령만
+> - (고급) OpenCore Legacy Patcher로 책상 맥을 macOS 13 이상으로 올리기 — 비공식이고 되돌리기 번거로워요.
+>   대신 보안 업데이트와 최신 onnxruntime도 쓸 수 있게 돼요. 원하시면 따로 안내할게요.
+
+1. 설치: `curl -fsSL https://claude.ai/install.sh | bash`
+2. 터미널에서 `claude`를 한 번 실행해 브라우저로 **구독 계정에 로그인**해요. 로그인이 끝나면 `/exit`.
+3. `config.yaml`:
+   ```yaml
+   llm:
+     backend: claude_code
+     claude_code_model: haiku   # 빠르고 사용량을 적게 씀
+   ```
+4. 확인: `uv run jarvis --windowed` 실행 후 `T`를 눌러 "오늘 저녁 뭐 먹을까?"를 입력해 보세요.
+
+알아 둘 점
+- 구독의 **사용량 한도를 평소 채팅과 나눠** 써요. 한도에 걸리면 자비스가 "구독 사용량 한도에 도달했어요"라고 말해요.
+- Claude Code의 기본 도구(셸 실행, 파일 수정 등)는 **모두 끈 상태**로 실행돼요. 자비스가 허락한 도구만 쓸 수 있어요.
+- 개인 용도로 쓰는 건 Claude Code 본래 용도에 가깝지만, 상시 켜 두는 비서로 쓰는 게 괜찮은지는
+  Anthropic 소비자 약관을 한 번 확인해 보세요.
+
+### 3.2 Claude API 키
 
 1. https://console.anthropic.com 에 로그인해 **API Keys**에서 키를 발급해요.
 2. **Billing**에서 크레딧을 충전해요.
@@ -99,8 +140,52 @@ python3 scripts/measure_cpu.py --seconds 60
    ANTHROPIC_API_KEY=sk-ant-...
    ```
    `.env`는 git에 올라가지 않아요.
+5. `config.yaml`에서 `llm.backend: api`.
 
-## 4. Google Cloud — 캘린더·Gmail (Phase 3, 5)
+## 4. 음성 (Phase 2)
+
+### 4.1 음성 패키지 설치
+음성 관련 패키지는 선택 설치예요. 책상 맥에서 호환성 체크(2.3)가 OK였던 것만 골라 설치하세요.
+```bash
+uv sync --extra voice --extra stt-faster          # 호출어 + faster-whisper (권장 조합)
+uv sync --extra voice --extra stt-cpp             # 또는 whisper.cpp
+uv sync --extra voice --extra stt-apple           # 또는 Apple 음성 인식
+```
+Intel Mac(macOS 12)에서 설치되는 버전(onnxruntime 1.19.x, pywhispercpp 1.2.0)으로 이미 고정해 뒀어요.
+
+처음 실행할 때 인터넷이 필요해요.
+- 호출어 모델("hey jarvis")을 GitHub에서 받아요.
+- faster-whisper 모델을 Hugging Face에서 받아요 (`small` 약 480MB, `base` 약 150MB).
+
+### 4.2 STT 엔진 고르기 (Phase 2 완료 조건)
+책상 맥에서:
+```bash
+uv run python scripts/bench_stt.py --synth                       # Yuna 음성으로 시험용 명령 10개 생성
+uv run python scripts/bench_stt.py --write                       # 설치된 엔진 전부 측정 → decisions.md
+uv run python scripts/bench_stt.py --record                      # (선택) 내 목소리로 다시 녹음해서 측정
+```
+표에서 **지연이 짧고 CER(글자 오류율)이 낮은** 엔진을 골라 `config.yaml`에 적어요.
+```yaml
+voice:
+  stt_engine: faster_whisper
+  stt_model: base
+```
+합성음은 실제 목소리보다 깨끗해서 점수가 좋게 나와요. 가능하면 `--record`로도 한 번 확인해 주세요.
+
+### 4.3 실행과 응답 시간 측정
+```bash
+uv run jarvis                 # 실제 마이크·스피커 + 연동은 아직 비활성
+uv run jarvis --mock --voice real   # 가짜 일정·메일 화면 + 실제 음성
+```
+"헤이 자비스, 지금 몇 시야?"라고 말해 보세요. 터미널 로그의
+`reply via local after 1.8s total` 같은 줄이 **말이 끝난 뒤 → 답변 준비**까지의 시간이에요.
+여러 번 해 보고 평균을 `docs/decisions.md`에 적어 주세요 (목표: 호출부터 응답 시작까지 5초 이내).
+
+- 호출어 대신 **스페이스 길게 누르기**, 화면의 마이크 버튼, **`T` 키로 텍스트 입력**도 돼요.
+- 말하는 도중에 스페이스를 누르면 말을 끊고 바로 다시 들어요.
+- 호출어가 너무 잘/안 걸리면 `voice.wake_threshold`(기본 0.5)를 조절하세요.
+
+## 5. Google Cloud — 캘린더·Gmail (Phase 3, 5)
 
 **Notion Calendar**는 공개 API가 없어요. 대신 Notion Calendar가 보여주는 일정은 연결된
 **Google 캘린더**에서 오기 때문에, Google Calendar API로 같은 캘린더를 읽습니다.
@@ -120,7 +205,7 @@ python3 scripts/measure_cpu.py --seconds 60
 > 앱이 "테스트" 상태면 약 **7일마다 다시 로그인**해야 할 수 있어요.
 > Jarvis가 화면에 "Google 다시 연결 필요" 카드와 버튼을 띄워 줍니다.
 
-## 5. Spotify (Phase 5)
+## 6. Spotify (Phase 5)
 
 1. https://developer.spotify.com/dashboard → **Create app**
 2. Redirect URI: `http://127.0.0.1:8765/callback/spotify`
@@ -129,7 +214,7 @@ python3 scripts/measure_cpu.py --seconds 60
 5. 개발 모드 앱의 이용 조건(사용자 수 제한, Premium 필요 여부)은 **구현 시점에 다시 확인**해요.
 6. 책상 맥에 Spotify 데스크톱 앱이 설치되는지도 확인해 주세요(Monterey 지원 여부는 체크 스크립트가 알려줘요).
 
-## 6. Slack (Phase 5)
+## 7. Slack (Phase 5)
 
 1. https://api.slack.com/apps → **Create New App → From scratch**, 워크스페이스 선택
 2. **OAuth & Permissions → User Token Scopes**에 추가:

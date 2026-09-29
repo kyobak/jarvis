@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Body, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -47,6 +49,27 @@ def create_app(jarvis: JarvisApp, ui_dist: Path = UI_DIST) -> FastAPI:
     @app.get("/api/snapshot")
     async def snapshot() -> JSONResponse:
         return JSONResponse([e.to_wire() for e in jarvis.store.snapshot()])
+
+    def require_tool_token(authorization: str | None) -> None:
+        expected = f"Bearer {jarvis.tool_token}"
+        if not authorization or not secrets.compare_digest(authorization, expected):
+            raise HTTPException(status_code=401, detail="bad token")
+
+    # Tool endpoints for the Claude Code MCP bridge (loopback + per-run token).
+    @app.get("/api/tools")
+    async def list_tools(authorization: str | None = Header(default=None)) -> list[dict[str, Any]]:
+        require_tool_token(authorization)
+        return jarvis.tools.describe()
+
+    @app.post("/api/tools/{name}")
+    async def call_tool(
+        name: str,
+        body: dict[str, Any] = Body(default_factory=dict),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        require_tool_token(authorization)
+        content, is_error = await jarvis.tools.call(name, body.get("arguments") or {})
+        return {"content": content, "is_error": is_error}
 
     @app.get("/auth/{provider}", response_class=HTMLResponse)
     async def auth(provider: str) -> str:

@@ -14,6 +14,9 @@
   {/if}
   {#if app.jarvisLine}
     <p class="jarvis">{app.jarvisLine.text}</p>
+    {#if app.jarvisLine.source === "local" || app.jarvisLine.source === "llm"}
+      <span class="source">{app.jarvisLine.source === "llm" ? "Claude" : "로컬 처리"}</span>
+    {/if}
   {/if}
 </div>
 
@@ -46,5 +49,9 @@
     font-size: 21px;
     font-weight: 500;
     color: var(--frost);
+  }
+  .source {
+    font-size: 11px;
+    color: var(--frost-3);
   }
 </style>

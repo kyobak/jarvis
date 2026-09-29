@@ -5,15 +5,28 @@ user_name: 재원
 timezone: Asia/Seoul
 
 llm:
-  default_model: claude-haiku-4-5      # command parsing, tool calls, short answers
-  smart_model: claude-sonnet-5-5       # daily briefing, complex requests
+  # claude_code: Claude Code CLI on your Pro/Max login (no API billing)
+  # api:         Anthropic API key in .env (billed per token)
+  # off:         local commands only (time, date, status, …)
+  backend: claude_code
+  default_model: claude-haiku-4-5      # api backend: command parsing, tool calls, short answers
+  smart_model: claude-sonnet-5-5       # api backend: daily briefing, complex requests
+  claude_code_model: haiku             # claude_code backend: alias passed to `claude --model`
   max_tokens: 300
   daily_token_limit: 200000
+  history_turns: 6
+  history_reset_min: 5
 
 voice:
   wake_word: hey_jarvis
+  wake_threshold: 0.5
   tts_voice: Yuna
-  stt_engine: auto        # decided by scripts/bench_stt.py (Phase 2)
+  tts_rate: 190           # words per minute for `say`
+  stt_engine: auto        # faster_whisper | whisper_cpp | apple — pick with scripts/bench_stt.py
+  stt_model: small        # whisper model size
+  input_device: null      # null = system default microphone
+  silence_sec: 0.8        # end of utterance after this much silence
+  max_utterance_sec: 10
 
 vision:
   camera_index: 0

@@ -7,6 +7,7 @@ import re
 import sys
 from datetime import time
 from pathlib import Path
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 import yaml
@@ -45,17 +46,35 @@ def _hour_range(v: object) -> HourRange:
     return HourRange.parse(str(v))
 
 
+LLMBackendName = Literal["claude_code", "api", "off", "mock"]
+STTEngineName = Literal["auto", "faster_whisper", "whisper_cpp", "apple", "mock"]
+
+
 class LLMConfig(BaseModel):
+    # claude_code: `claude -p` on the user's Pro/Max login; api: Anthropic API key; off: local intents only.
+    backend: LLMBackendName = "claude_code"
     default_model: str = "claude-haiku-4-5"
     smart_model: str = "claude-sonnet-5-5"
+    claude_code_model: str = "haiku"
+    claude_code_path: str = "claude"
     max_tokens: int = 300
     daily_token_limit: int = 200_000
+    history_turns: int = 6
+    history_reset_min: int = 5
+    timeout_sec: float = 30
 
 
 class VoiceConfig(BaseModel):
     wake_word: str = "hey_jarvis"
+    wake_threshold: float = 0.5
     tts_voice: str = "Yuna"
-    stt_engine: str = "auto"
+    tts_rate: int = 190
+    stt_engine: STTEngineName = "auto"
+    stt_model: str = "small"
+    input_device: str | int | None = None
+    silence_sec: float = 0.8
+    max_utterance_sec: float = 10.0
+    no_speech_timeout_sec: float = 5.0
 
 
 class VisionConfig(BaseModel):

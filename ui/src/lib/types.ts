@@ -10,7 +10,8 @@ export interface Status {
   camera: "on" | "off" | "paused" | "mock";
   mic: "on" | "off" | "mock";
   integrations: Record<"calendar" | "gmail" | "slack" | "spotify" | "claude", LinkState>;
-  llm: { calls: number; tokens: number; limit: number };
+  llm: { calls: number; tokens: number; limit: number; backend?: "claude_code" | "api" | "off" | "mock" };
+  wake_word?: boolean;
 }
 
 export interface CalendarEvent {
@@ -92,6 +93,8 @@ export interface Transcript {
   role: "user" | "jarvis";
   text: string;
   final: boolean;
+  /** jarvis only: who produced the reply (local | llm | limit | error). */
+  source?: string;
 }
 
 export interface Drowsiness {

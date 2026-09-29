@@ -26,7 +26,8 @@ SCRATCH_VENV = ROOT / ".check-venv"
 
 # (pip spec, smoke-test code run inside the scratch venv; prints a short detail line)
 CANDIDATES: list[tuple[str, str]] = [
-    ("onnxruntime", "import onnxruntime as o; print(o.__version__)"),
+    # onnxruntime >= 1.20 needs macOS 13; 1.19.x is the last for Monterey on Intel.
+    ("onnxruntime<1.20", "import onnxruntime as o; print(o.__version__)"),
     (
         "opencv-contrib-python",
         "import cv2; print(cv2.__version__, 'YuNet' if hasattr(cv2, 'FaceDetectorYN') else 'no-YuNet',"
@@ -34,11 +35,17 @@ CANDIDATES: list[tuple[str, str]] = [
         " 'LBF' if hasattr(cv2, 'face') else 'no-LBF')",
     ),
     ("mediapipe", "import mediapipe as mp; print(mp.__version__)"),
-    ("openwakeword", "import openwakeword; print(getattr(openwakeword, '__version__', 'ok'))"),
+    (
+        "openwakeword",
+        "from openwakeword.model import Model; import openwakeword.utils as u;"
+        " getattr(u, 'download_models', lambda **k: None)(model_names=['hey_jarvis']);"
+        " print('hey_jarvis OK')",
+    ),
     ("webrtcvad-wheels", "import webrtcvad; v = webrtcvad.Vad(2); print('ok')"),
     ("sounddevice", "import sounddevice as sd; print(len(sd.query_devices()), 'devices')"),
     ("faster-whisper", "import faster_whisper, ctranslate2; print(faster_whisper.__version__, 'ct2', ctranslate2.__version__)"),
-    ("pywhispercpp", "import pywhispercpp; print('ok')"),
+    # 1.2.0 is the last release with Intel macOS wheels.
+    ("pywhispercpp<1.3", "import pywhispercpp; print('ok')"),
     ("pyobjc-framework-Speech", "import Speech; print(Speech.SFSpeechRecognizer.supportedLocales().count(), 'locales')"),
     ("pywebview", "import webview; print(webview.__version__ if hasattr(webview, '__version__') else 'ok')"),
 ]
@@ -74,6 +81,15 @@ def system_checks() -> list[tuple[str, str, str]]:
     py_ok = sys.version_info[:2] == (3, 12)
     rows.append(("Python", platform.python_version(), "OK" if py_ok else "3.12 권장 (python.org)"))
     rows.append(("uv", shutil.which("uv") or "없음", "권장"))
+    claude = shutil.which("claude")
+    major = int(mac.split(".")[0]) if mac[:1].isdigit() else 0
+    if sys.platform == "darwin" and major and major < 13:
+        rows.append(("Claude Code", "지원 안 됨", "macOS 13+ 필요 → llm.backend: api 또는 off"))
+    elif claude:
+        code, ver = sh([claude, "--version"])
+        rows.append(("Claude Code", ver.splitlines()[0] if code == 0 and ver else "실행 실패", "llm.backend: claude_code"))
+    else:
+        rows.append(("Claude Code", "없음", "구독으로 쓰려면 설치 필요 (docs/setup.md 3장)"))
 
     if sys.platform == "darwin":
         code, voices = sh(["say", "-v", "?"])

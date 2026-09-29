@@ -5,43 +5,21 @@ from __future__ import annotations
 from typing import Any
 
 from jarvis.core.config import Config
-from jarvis.core.db import Database
 from jarvis.core.event_bus import EventBus
-from jarvis.core.timeutil import now
+from jarvis.core.status import StatusBoard
 
 
 class LiveWorld:
-    def __init__(self, config: Config, bus: EventBus, db: Database, dev: bool = False) -> None:
+    def __init__(self, config: Config, bus: EventBus, status: StatusBoard) -> None:
         self.config = config
         self.bus = bus
-        self.db = db
-        self.dev = dev
+        self.status = status
 
     async def start(self) -> None:
-        usage = self.db.llm_usage(now(self.config.tz).date())
-        await self.bus.publish(
-            "status",
-            {
-                "mock": False,
-                "dev": self.dev,
-                "user_name": self.config.user_name,
-                "camera": "off",
-                "mic": "off",
-                "integrations": {
-                    "calendar": "disabled",
-                    "gmail": "disabled",
-                    "slack": "disabled",
-                    "spotify": "disabled",
-                    "claude": "disabled",
-                },
-                "llm": {
-                    "calls": usage["calls"],
-                    "tokens": usage["input_tokens"] + usage["output_tokens"],
-                    "limit": self.config.llm.daily_token_limit,
-                },
-            },
+        await self.status.update(
+            camera="off",
+            integrations={"calendar": "disabled", "gmail": "disabled", "slack": "disabled", "spotify": "disabled"},
         )
-        await self.bus.publish("state", {"core": "idle"})
         await self.bus.publish("schedule", {"events": [], "synced_at": None, "offline": False})
         await self.bus.publish("reminders", {"items": []})
         await self.bus.publish(
@@ -61,8 +39,5 @@ class LiveWorld:
         if action == "state":
             await self.bus.publish("state", {"core": value})
 
-    async def handle_ptt(self, down: bool) -> None:
-        pass  # Voice loop arrives in Phase 2.
-
     async def handle_alert_ack(self) -> None:
-        await self.bus.publish("state", {"core": "idle"})
+        await self.bus.publish("alert", {"active": False})

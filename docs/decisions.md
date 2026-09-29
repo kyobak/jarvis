@@ -16,3 +16,22 @@
 - 대기 — 구동 기기 호환성 체크: `python3 scripts/check_env.py --install --write` 실행 후 아래에 결과 추가
 - 대기 — 구동 기기 idle UI CPU(목표 ≤10%): `scripts/measure_cpu.py` 결과 기록
 - 대기 — pywebview/WKWebView(Monterey) CSS 호환성: 구동 기기에서 확인, 문제 시 Safari 전체화면 대체
+
+## Phase 2
+
+- 2026-09-29 — 두뇌 구조: 로컬 규칙 파서 우선(시간·날짜·상태·인사·감사·취소), 매칭 안 될 때만 LLM. 발화 전체가 패턴과 일치할 때만 로컬 처리("3시에 스터디 있어?"는 LLM으로)
+- 2026-09-29 — LLM 백엔드 교체 가능: `llm.backend` = `claude_code`(구독) / `api` / `off`. 기본값 `claude_code`
+- 2026-09-29 — `claude_code` 백엔드: `claude -p --output-format json --tools "" --strict-mcp-config --allowedTools mcp__jarvis --system-prompt …`, 빈 작업 폴더에서 실행, 프롬프트는 stdin으로 전달, 후속 질문은 `--resume`. `--bare`는 API 키 인증만 지원해서 사용 안 함
+- 2026-09-29 — Claude Code가 부를 수 있는 도구는 Jarvis MCP 브리지(표준 라이브러리만 사용, 빠른 시작)뿐. 브리지는 루프백 HTTP + 실행마다 새로 만드는 토큰으로 서버에 접근
+- 2026-09-29 — 실제 CLI 검증(클라우드 x86 서버, Haiku): 도구 호출 포함 7.5s, 이어지는 질문 4.8s. 구동 기기에서는 더 느릴 것 → 5초 목표는 로컬 명령으로 달성, LLM 질문은 초과 가능
+- 2026-09-29 — 구독 사용량 계산에서 캐시 읽기 토큰은 제외 (재개된 대화마다 수천 토큰이라 포함하면 일일 한도가 금방 참)
+- 2026-09-29 — `api` 백엔드: SDK 1.x `AsyncAnthropic` + 직접 작성한 도구 루프(최대 4회). 베타 tool runner 대신 요청별 사용량 기록과 루프 상한을 직접 제어. 재시도는 SDK가 아니라 Brain에서 1회
+- 2026-09-29 — onnxruntime(호출어, Silero VAD 의존): 1.20부터 macOS 13 이상 필요 → Intel Mac에서는 `<1.20`(마지막 1.19.2)으로 고정
+- 2026-09-29 — pywhispercpp: Intel Mac용 휠은 1.2.0이 마지막 → Intel Mac에서는 `<1.3`으로 고정
+- 2026-09-29 — openWakeWord: macOS는 0.6(모델 첫 실행 시 다운로드), Linux는 0.4(모델 내장, 0.6은 py3.12용 tflite-runtime 없음). 코드가 두 API 모두 지원. 프레임당 4.6ms(클라우드 x86)
+- 2026-09-29 — Apple Speech 엔진은 별도 하위 프로세스에서 실행 (권한 설명이 없는 프로세스는 macOS가 종료시킬 수 있음)
+- 2026-09-29 — TTS: `say`로 WAV를 먼저 만들고 음량 곡선을 계산한 뒤 `afplay`로 재생 → 코어 파형이 실제 목소리에 맞춰 움직임. 텍스트는 stdin으로 전달
+- 2026-09-29 — 말 끝 판정: webrtcvad(없으면 에너지 기반), 무음 0.8초. 호출어 후 5초간 말이 없으면 조용히 대기로 복귀
+- 2026-09-29 — Claude Code on 구동 기기: 불가. 문서상 macOS 13+ 필요, `@anthropic-ai/claude-code-darwin-x64` 2.1.284 실행 파일의 `LC_BUILD_VERSION minos = 13.0.0` 확인 → macOS 12에서 로드 안 됨. 구동 기기는 `api` 또는 `off`, 개발 맥은 `claude_code`
+- 대기 — STT 엔진 선택: 구동 기기에서 `scripts/bench_stt.py --synth` → `--write` 결과로 결정
+- 대기 — 호출어→응답 음성 시작 지연(목표 5초): 구동 기기 로그의 `reply via … after …s`로 측정

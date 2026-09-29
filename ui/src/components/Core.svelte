@@ -126,21 +126,29 @@
       {#if core === "offline"}
         <span class="hint">서버에 다시 연결하는 중…</span>
       {:else if core === "idle"}
-        <span class="hint">“헤이 자비스” 또는 스페이스 길게</span>
+        <span class="hint">{app.status?.wake_word ? "“헤이 자비스” 또는 스페이스 길게" : "스페이스를 길게 누르거나 T로 입력"}</span>
       {/if}
-      <button
-        class="mic"
-        class:live={core === "listening"}
-        aria-label="말하기"
-        onpointerdown={pttDown}
-        onpointerup={pttUp}
-        onpointerleave={pttUp}
-      >
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-          <rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" />
-          <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="1.5" />
-        </svg>
-      </button>
+      <div class="buttons">
+        <button
+          class="round mic"
+          class:live={core === "listening"}
+          aria-label="말하기"
+          onpointerdown={pttDown}
+          onpointerup={pttUp}
+          onpointerleave={pttUp}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" />
+            <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="1.5" />
+          </svg>
+        </button>
+        <button class="round" aria-label="텍스트로 입력" onclick={() => (app.commandOpen = true)}>
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <rect x="3" y="6" width="18" height="12" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+            <path d="M7 10h1M11 10h1M15 10h1M8 14h8" stroke="currentColor" stroke-width="1.5" />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <div class="readout right">
@@ -248,18 +256,22 @@
     color: var(--frost-3);
   }
 
-  .mic {
+  .buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .round {
     display: grid;
     place-items: center;
     width: 34px;
     height: 34px;
-    margin-top: 8px;
     border-radius: 50%;
     border: 1px solid var(--tide-line);
     color: var(--frost-2);
     transition: border-color 0.2s, color 0.2s;
   }
-  .mic:hover,
+  .round:hover,
   .mic.live {
     border-color: var(--arc);
     color: var(--arc);

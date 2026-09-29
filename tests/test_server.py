@@ -30,8 +30,9 @@ def test_dev_state_switch_is_broadcast(mock_app, tmp_path):
     assert msg["payload"]["core"] == "thinking"
 
 
-def test_dev_commands_ignored_outside_dev_mode(tmp_path):
-    app = JarvisApp(Config(), mock=False, db_path=str(tmp_path / "j.db"))
+def test_dev_commands_ignored_outside_dev_mode(tmp_path, monkeypatch):
+    monkeypatch.setenv("JARVIS_DATA_DIR", str(tmp_path))
+    app = JarvisApp(Config(), mock=False, db_path=str(tmp_path / "j.db"), voice="mock")
     with TestClient(create_app(app, ui_dist=tmp_path)) as client:
         with client.websocket_connect("/ws") as ws:
             ws.send_json({"type": "dev", "payload": {"action": "state", "value": "alert"}})

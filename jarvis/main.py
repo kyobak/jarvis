@@ -24,6 +24,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("command", nargs="?", default="run", choices=["run", "enroll"])
     p.add_argument("--mock", action="store_true", help="fake camera, mic, and integrations")
     p.add_argument("--dev", action="store_true", help="enable developer shortcuts without mock mode")
+    p.add_argument("--voice", choices=["real", "mock"], help="microphone/speaker (default: mock with --mock, else real)")
+    p.add_argument("--llm", choices=["claude_code", "api", "off", "mock"], help="override llm.backend")
+    p.add_argument(
+        "--stt", choices=["auto", "faster_whisper", "whisper_cpp", "apple", "mock"], help="override voice.stt_engine"
+    )
     p.add_argument("--config", type=Path, help="path to config.yaml")
     p.add_argument("--no-window", action="store_true", help="server only; open the UI in a browser yourself")
     p.add_argument("--browser", action="store_true", help="with --no-window, open the default browser")
@@ -48,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(args.config)
     if args.port:
         config.server.port = args.port
-    jarvis = JarvisApp(config, mock=args.mock, dev=args.dev)
+    jarvis = JarvisApp(config, mock=args.mock, dev=args.dev, voice=args.voice, llm=args.llm, stt=args.stt)
     app = create_app(jarvis)
     url = f"http://{config.server.host}:{config.server.port}/"
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import AlertLayer from "./components/AlertLayer.svelte";
+  import CommandInput from "./components/CommandInput.svelte";
   import Backdrop from "./components/Backdrop.svelte";
   import Core from "./components/Core.svelte";
   import DevHelp from "./components/DevHelp.svelte";
@@ -26,7 +27,7 @@
   const STATE_KEYS = ["idle", "listening", "thinking", "speaking", "alert", "offline"];
 
   function onKeyDown(e: KeyboardEvent): void {
-    if (e.repeat) return;
+    if (e.repeat || app.commandOpen || e.target instanceof HTMLInputElement) return;
     if (e.code === "Space") {
       e.preventDefault();
       spaceTimer = setTimeout(() => {
@@ -37,6 +38,11 @@
     }
     if (e.key === "?") {
       helpOpen = !helpOpen;
+      return;
+    }
+    if (e.key.toLowerCase() === "t" && !e.metaKey && !e.ctrlKey) {
+      e.preventDefault();
+      app.commandOpen = true;
       return;
     }
     if (!app.status?.dev) return;
@@ -102,6 +108,7 @@
 </main>
 
 <AlertLayer />
+<CommandInput />
 <DevHelp open={helpOpen} onclose={() => (helpOpen = false)} />
 
 <style>

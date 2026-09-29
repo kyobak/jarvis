@@ -19,3 +19,4 @@ ui/public/fonts/*.woff2
 .DS_Store
 *.log
 .check-venv/
+.bench/
