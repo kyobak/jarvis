@@ -25,8 +25,11 @@ Work phase by phase (§12) and stop after each phase to report.
 - Storage: SQLite at `~/Library/Application Support/Jarvis/jarvis.db` (`JARVIS_DATA_DIR` overrides).
 - Brain: local Korean intent router first (`brain/router.py`, whole-utterance regex, free);
   otherwise an LLM backend chosen by `llm.backend`. Local is the foundation; the LLM is an add-on.
-  - `api` (default): Anthropic Python SDK 1.x `AsyncAnthropic`, manual tool loop, models from
-    `llm.default_model`. With no `ANTHROPIC_API_KEY`, the app silently runs as `off`.
+  Any backend without its key/model falls back to `off` at startup (`core/app.py`).
+  - `openai_compat` (default): Chat Completions over httpx2 with provider presets
+    (`gemini` free tier by default, `groq`, `openrouter`, `github`, `ollama`, `custom`), manual tool loop.
+    The user chose this over "Claude only" (plan §1) to stay free.
+  - `api`: Anthropic Python SDK 1.x `AsyncAnthropic`, manual tool loop, models from `llm.default_model`.
   - `claude_code` (dev Mac only): `claude -p` on the user's Pro/Max login, built-in tools off, Jarvis tools
     via the stdlib MCP bridge (`brain/mcp_bridge.py` → `/api/tools`, per-run bearer token).
     Claude Code needs macOS 13+ (binary minos 13.0, verified), so it cannot run on the target:
@@ -65,11 +68,11 @@ cd ui && npm install && npm run build    # UI → ui/dist (served by FastAPI)
 cd ui && npm run check                   # svelte-check / TypeScript
 uv run jarvis --mock                     # full app, fake everything, dev shortcuts on
 uv run jarvis --mock --no-window         # server only → http://127.0.0.1:8765
-uv run jarvis --mock --voice real --llm claude_code   # fake panels, real mic/speaker + subscription brain
+uv run jarvis --mock --voice real --llm openai_compat   # fake panels, real mic/speaker, Gemini (needs GEMINI_API_KEY)
 uv run python scripts/bench_stt.py --synth && uv run python scripts/bench_stt.py
 cd ui && npm run dev                     # Vite dev server on :5173, proxies /ws to :8765
 ```
-Tests never call real Claude: backends are tested with a fake SDK client and a fake `claude` script.
+Tests never call a real LLM: fake Anthropic client, fake `claude` script, httpx2 MockTransport.
 
 ## WebSocket protocol
 Server → UI: `{"type": T, "payload": {...}}`. Sticky types (replayed on connect, see
@@ -89,6 +92,9 @@ Wire types live in `ui/src/lib/types.ts` — keep them in sync with the publishe
 - Claude gets only the fixed tool list (plan §6.2, `brain/tools.py`) — never shell or generic tools.
   For `claude_code` that means `--tools ""` + `--strict-mcp-config` + `--allowedTools mcp__jarvis`; keep it.
   Message bodies are untrusted: summarisation calls run with tools disabled.
+- Personal data (schedule titles, mail/Slack content) reaches an LLM only when
+  `llm.personal_data_allowed(backend)` is true — false by default for free tiers (`openai_compat`).
+  Prompt context honours `Context.personal`; new tools returning personal data must too.
 - Vision is 100% local; frames never leave memory, never touch disk (only face embeddings persist).
 - Vision events and polling never call Claude.
 - UI perf: no WebGL/Three.js, no `backdrop-filter`, no large `filter: blur`; animate only

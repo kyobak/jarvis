@@ -25,7 +25,7 @@ INTEGRATION_KO = {
     "gmail": "Gmail",
     "slack": "Slack",
     "spotify": "Spotify",
-    "claude": "AI",
+    "ai": "AI",
 }
 
 
@@ -36,9 +36,12 @@ class Context:
     status: dict[str, Any]
     next_event: dict[str, Any] | None
     focus_session: dict[str, Any] | None
+    # False when the LLM is a free tier that may train on inputs: prompts then omit
+    # schedule titles and other personal content (llm.send_personal_data).
+    personal: bool = True
 
     @classmethod
-    def build(cls, store: StateStore, now: datetime, user_name: str) -> "Context":
+    def build(cls, store: StateStore, now: datetime, user_name: str, personal: bool = True) -> "Context":
         schedule = store.get("schedule") or {}
         upcoming = [
             e for e in schedule.get("events", []) if datetime.fromisoformat(e["start"]) > now
@@ -51,6 +54,7 @@ class Context:
             status=store.get("status") or {},
             next_event=upcoming[0] if upcoming else None,
             focus_session=focus.get("session"),
+            personal=personal,
         )
 
     def date_line(self) -> str:
@@ -64,7 +68,8 @@ class Context:
         if self.next_event:
             start = datetime.fromisoformat(self.next_event["start"])
             mins = int((start - n).total_seconds() // 60)
-            lines.append(f"다음 일정: {start:%H:%M} {self.next_event['title']} ({mins}분 후)")
+            title = f" {self.next_event['title']}" if self.personal else ""
+            lines.append(f"다음 일정: {start:%H:%M}{title} ({mins}분 후)")
         else:
             lines.append("다음 일정: 없음")
         if self.focus_session:

@@ -13,6 +13,7 @@ from jarvis.core.status import StatusBoard
 
 class FakeBackend:
     name = "fake"
+    label = "Fake"
 
     def __init__(self, *outcomes):
         self.outcomes = list(outcomes)

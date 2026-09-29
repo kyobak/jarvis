@@ -50,12 +50,33 @@ def test_placeholder_when_ui_not_built(mock_app, tmp_path):
         assert "준비 중" in client.get("/auth/google").text
 
 
-def test_api_backend_falls_back_to_off_without_key(tmp_path, monkeypatch):
+def _app(tmp_path, name, backend=None):
+    cfg = Config()
+    if backend:
+        cfg.llm.backend = backend
+    return JarvisApp(cfg, mock=False, db_path=str(tmp_path / f"{name}.db"), voice="mock")
+
+
+def test_ai_backends_fall_back_to_off_without_key(tmp_path, monkeypatch):
     monkeypatch.setenv("JARVIS_DATA_DIR", str(tmp_path))
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    app = JarvisApp(Config(), mock=False, db_path=str(tmp_path / "j.db"), voice="mock")
-    assert app.llm_backend_name == "api" and app.brain.backend.name == "off"
+    for var in ("GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
+        monkeypatch.delenv(var, raising=False)
+    app = _app(tmp_path, "a")
+    assert app.llm_backend_name == "openai_compat" and app.brain.backend.name == "off"
+    assert _app(tmp_path, "b", "api").brain.backend.name == "off"
+
+    monkeypatch.setenv("GEMINI_API_KEY", "g-test")
+    backend = _app(tmp_path, "c").brain.backend
+    assert backend.name == "openai_compat" and backend.label == "Gemini"
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-    app = JarvisApp(Config(), mock=False, db_path=str(tmp_path / "k.db"), voice="mock")
-    assert app.brain.backend.name == "api" and app.brain.backend.availability() == "ok"
+    assert _app(tmp_path, "d", "api").brain.backend.name == "api"
+
+
+def test_status_reports_ai_label(tmp_path, monkeypatch):
+    monkeypatch.setenv("JARVIS_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("GEMINI_API_KEY", "g-test")
+    app = _app(tmp_path, "e")
+    with TestClient(create_app(app, ui_dist=tmp_path)):
+        status = app.store.get("status")
+    assert status["llm"]["label"] == "Gemini" and status["integrations"]["ai"] == "ok"

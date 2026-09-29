@@ -9,8 +9,15 @@ export interface Status {
   user_name: string;
   camera: "on" | "off" | "paused" | "mock";
   mic: "on" | "off" | "mock";
-  integrations: Record<"calendar" | "gmail" | "slack" | "spotify" | "claude", LinkState>;
-  llm: { calls: number; tokens: number; limit: number; backend?: "claude_code" | "api" | "off" | "mock" };
+  integrations: Record<"calendar" | "gmail" | "slack" | "spotify" | "ai", LinkState>;
+  llm: {
+    calls: number;
+    tokens: number;
+    limit: number;
+    backend?: "openai_compat" | "api" | "claude_code" | "off" | "mock";
+    /** Display name of the AI in use, e.g. "Gemini", "Claude". */
+    label?: string;
+  };
   wake_word?: boolean;
 }
 

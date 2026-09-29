@@ -10,6 +10,7 @@ from jarvis.brain.context import Context
 
 class OffBackend:
     name = "off"
+    label = "꺼짐"
 
     def availability(self) -> str:
         return "disabled"
@@ -26,6 +27,7 @@ class OffBackend:
 
 class MockBackend:
     name = "mock"
+    label = "모의"
 
     def __init__(self, delay: float = 0.9) -> None:
         self.delay = delay

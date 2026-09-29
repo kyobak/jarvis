@@ -52,7 +52,7 @@ def test_other_things_fall_through_to_llm(text):
 def test_status_reply_names_problems():
     status = {
         "camera": "off",
-        "integrations": {"calendar": "disabled", "gmail": "expired", "claude": "ok"},
+        "integrations": {"calendar": "disabled", "gmail": "expired", "ai": "ok"},
         "llm": {"calls": 3},
     }
     text = router.match("시스템 상태 어때", ctx(status=status)).text
@@ -60,7 +60,7 @@ def test_status_reply_names_problems():
 
 
 def test_status_all_good():
-    status = {"camera": "mock", "integrations": {"calendar": "ok", "claude": "mock"}, "llm": {"calls": 0}}
+    status = {"camera": "mock", "integrations": {"calendar": "ok", "ai": "mock"}, "llm": {"calls": 0}}
     assert "연동은 모두 정상이에요" in router.match("상태 알려줘", ctx(status=status)).text
 
 

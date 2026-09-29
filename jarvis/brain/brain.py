@@ -52,7 +52,8 @@ class Brain:
         self._lock = asyncio.Lock()
 
     def context(self) -> Context:
-        return Context.build(self.store, self.clock(), self.config.user_name)
+        personal = self.config.llm.personal_data_allowed(self.backend.name)
+        return Context.build(self.store, self.clock(), self.config.user_name, personal)
 
     async def publish_usage(self) -> None:
         usage = self.db.llm_usage(self.clock().date())
@@ -62,8 +63,9 @@ class Brain:
                 "tokens": usage["input_tokens"] + usage["output_tokens"],
                 "limit": self.config.llm.daily_token_limit,
                 "backend": self.backend.name,
+                "label": self.backend.label,
             },
-            integrations={"claude": self.backend.availability()},
+            integrations={"ai": self.backend.availability()},
         )
 
     async def handle(self, utterance: str) -> Reply:

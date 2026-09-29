@@ -608,6 +608,7 @@ source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "fastapi" },
+    { name = "httpx2" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "pywebview", marker = "sys_platform == 'darwin'" },
@@ -650,6 +651,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=1,<2" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "faster-whisper", marker = "extra == 'stt-faster'", specifier = ">=1.0" },
+    { name = "httpx2", specifier = ">=2.0" },
     { name = "numpy", marker = "extra == 'voice'", specifier = ">=1.24" },
     { name = "onnxruntime", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'stt-faster'", specifier = ">=1.17,<1.20" },
     { name = "onnxruntime", marker = "platform_machine == 'x86_64' and sys_platform == 'darwin' and extra == 'voice'", specifier = ">=1.17,<1.20" },

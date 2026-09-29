@@ -34,5 +34,9 @@
 - 2026-09-29 — 말 끝 판정: webrtcvad(없으면 에너지 기반), 무음 0.8초. 호출어 후 5초간 말이 없으면 조용히 대기로 복귀
 - 2026-09-29 — Claude Code on 구동 기기: 불가. 문서상 macOS 13+ 필요, `@anthropic-ai/claude-code-darwin-x64` 2.1.284 실행 파일의 `LC_BUILD_VERSION minos = 13.0.0` 확인 → macOS 12에서 로드 안 됨. 구동 기기는 `api` 또는 `off`, 개발 맥은 `claude_code`
 - 2026-09-29 — (사용자 결정) 기본 백엔드를 `api`로, 단 로컬 처리가 기반: API 키가 없으면 자동으로 `off`처럼 동작하고, 키가 있어도 로컬 명령은 API를 쓰지 않음. `claude_code`는 개발 맥 전용 옵션으로 유지
+- 2026-09-29 — (사용자 결정) 무료 AI 사용: 기본 백엔드 `openai_compat` + Gemini 무료 등급(`gemini-flash-latest` 별칭). 계획서의 "Claude만 사용"에서 변경. Claude API·Claude Code·Groq·OpenRouter·GitHub Models·Ollama로 설정만 바꿔 전환 가능
+- 2026-09-29 — 무료 등급은 입력이 학습에 쓰일 수 있음 → `llm.send_personal_data` 기본값: Claude 계열만 true. 무료 AI에는 일정 제목 미전송, Phase 5의 메일·슬랙 요약도 미전송
+- 2026-09-29 — OpenAI 호환 요청: 도구 스키마에서 `additionalProperties`/빈 `required` 제거(Gemini 호환), `max_tokens` 1024(생각하는 모델이 토큰 일부를 먼저 씀), 429는 재시도하지 않음(무료 한도 소모 방지)
+- 대기 — Gemini 실제 응답·도구 호출 확인: 이 개발 환경에서는 Google API가 막혀 있어 미검증. 사용자 맥에서 키 넣고 확인
 - 대기 — STT 엔진 선택: 구동 기기에서 `scripts/bench_stt.py --synth` → `--write` 결과로 결정
 - 대기 — 호출어→응답 음성 시작 지연(목표 5초): 구동 기기 로그의 `reply via … after …s`로 측정

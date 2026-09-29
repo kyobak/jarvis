@@ -4,7 +4,7 @@
 일정·음악·메시지를 한 화면에 모아 보여줍니다.
 
 > 현재 단계: **Phase 0–2** — HUD UI, 음성 대화(호출어 → 음성 인식 → 답변 → 음성 출력),
-> Claude 연결까지 동작해요. 일정·메일·음악 패널은 아직 모의(mock) 데이터예요.
+> AI 연결(기본: Gemini 무료 등급)까지 동작해요. 일정·메일·음악 패널은 아직 모의(mock) 데이터예요.
 
 ## 빠르게 실행해 보기 (개발 맥)
 
@@ -26,8 +26,9 @@ uv run jarvis --mock --voice real --windowed
 ```
 
 "헤이 자비스, 지금 몇 시야?"처럼 자주 쓰는 명령은 AI 없이 바로 답해요(기본).
-`.env`에 `ANTHROPIC_API_KEY`를 넣으면 로컬로 못 한 질문만 Claude API로 보내요. 키가 없으면 로컬 명령만 동작해요.
-답변 아래의 `로컬 처리` / `Claude` 표시로 구분돼요.
+`.env`에 무료 `GEMINI_API_KEY`를 넣으면 로컬로 못 한 질문만 Gemini로 보내요. 키가 없으면 로컬 명령만 동작해요.
+Claude API나 다른 무료 서비스로도 바꿀 수 있어요 ([docs/setup.md](docs/setup.md) 3장).
+답변 아래의 `로컬 처리` / `Gemini` 표시로 구분돼요.
 
 브라우저로만 보고 싶다면 `uv run jarvis --mock --no-window` 후 http://127.0.0.1:8765 를 여세요.
 

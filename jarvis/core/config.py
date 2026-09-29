@@ -7,7 +7,7 @@ import re
 import sys
 from datetime import time
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 import yaml
@@ -46,14 +46,31 @@ def _hour_range(v: object) -> HourRange:
     return HourRange.parse(str(v))
 
 
-LLMBackendName = Literal["claude_code", "api", "off", "mock"]
+LLMBackendName = Literal["openai_compat", "api", "claude_code", "off", "mock"]
+ProviderName = Literal["gemini", "groq", "openrouter", "github", "ollama", "custom"]
 STTEngineName = Literal["auto", "faster_whisper", "whisper_cpp", "apple", "mock"]
 
 
+class OpenAICompatConfig(BaseModel):
+    """Any OpenAI-compatible chat API (Gemini, Groq, OpenRouter, GitHub Models, Ollama, …)."""
+
+    provider: ProviderName = "gemini"
+    model: str | None = None  # None = the provider preset's default
+    base_url: str | None = None  # None = the provider preset's URL
+    api_key_env: str | None = None  # None = the provider preset's variable
+    max_tokens: int = 1024  # thinking models spend part of this before answering
+    extra_body: dict[str, Any] = Field(default_factory=dict)
+
+
 class LLMConfig(BaseModel):
-    # api: Anthropic API key (falls back to off when no key is set);
+    # openai_compat: a free-tier API such as Gemini (falls back to off without a key);
+    # api: Anthropic API (falls back to off without ANTHROPIC_API_KEY);
     # claude_code: `claude -p` on a Pro/Max login (macOS 13+); off: local intents only.
-    backend: LLMBackendName = "api"
+    backend: LLMBackendName = "openai_compat"
+    # Schedule titles (and later mail/Slack content) go to the model only when this is true.
+    # None = true for Claude backends, false for openai_compat (free tiers may train on inputs).
+    send_personal_data: bool | None = None
+    openai_compat: OpenAICompatConfig = Field(default_factory=OpenAICompatConfig)
     default_model: str = "claude-haiku-4-5"
     smart_model: str = "claude-sonnet-5-5"
     claude_code_model: str = "haiku"
@@ -63,6 +80,11 @@ class LLMConfig(BaseModel):
     history_turns: int = 6
     history_reset_min: int = 5
     timeout_sec: float = 30
+
+    def personal_data_allowed(self, backend: str) -> bool:
+        if self.send_personal_data is not None:
+            return self.send_personal_data
+        return backend in ("api", "claude_code", "mock")
 
 
 class VoiceConfig(BaseModel):

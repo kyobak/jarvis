@@ -6,15 +6,26 @@ timezone: Asia/Seoul
 
 llm:
   # Frequent commands (time, date, status, …) are always handled locally for free.
-  # api:         other questions go to Claude with ANTHROPIC_API_KEY from .env (billed per token);
-  #              without a key Jarvis runs as `off`
-  # off:         local commands only
-  # claude_code: Claude Code CLI on a Pro/Max login (dev Mac only; needs macOS 13+)
-  backend: api
-  default_model: claude-haiku-4-5      # api backend: command parsing, tool calls, short answers
+  # Everything else goes to the backend below; without its API key Jarvis runs as `off`.
+  #   openai_compat: an OpenAI-compatible API — Gemini free tier by default (GEMINI_API_KEY in .env)
+  #   api:           Claude API (ANTHROPIC_API_KEY in .env, billed per token)
+  #   claude_code:   Claude Code CLI on a Pro/Max login (dev Mac only; needs macOS 13+)
+  #   off:           local commands only
+  backend: openai_compat
+  openai_compat:
+    provider: gemini          # gemini | groq | openrouter | github | ollama | custom
+    model: null               # null = preset default (gemini: gemini-flash-latest); required for others
+    # base_url: null          # only for provider: custom
+    # api_key_env: null       # env var holding the key; null = preset default
+    max_tokens: 1024
+    extra_body: {}            # extra request fields, if a provider needs them
+  # Free tiers may use inputs to improve their models, so schedule titles (and later
+  # mail/Slack content) are only sent when this is true. null = true for Claude backends only.
+  send_personal_data: null
+  default_model: claude-haiku-4-5      # api backend
   smart_model: claude-sonnet-5-5       # api backend: daily briefing, complex requests
-  claude_code_model: haiku             # claude_code backend: alias passed to `claude --model`
-  max_tokens: 300
+  claude_code_model: haiku             # claude_code backend
+  max_tokens: 300                      # api backend
   daily_token_limit: 200000
   history_turns: 6
   history_reset_min: 5

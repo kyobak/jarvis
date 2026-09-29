@@ -15,7 +15,7 @@
   {#if app.jarvisLine}
     <p class="jarvis">{app.jarvisLine.text}</p>
     {#if app.jarvisLine.source === "local" || app.jarvisLine.source === "llm"}
-      <span class="source">{app.jarvisLine.source === "llm" ? "Claude" : "로컬 처리"}</span>
+      <span class="source">{app.jarvisLine.source === "llm" ? (app.status?.llm.label ?? "AI") : "로컬 처리"}</span>
     {/if}
   {/if}
 </div>

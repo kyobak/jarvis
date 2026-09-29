@@ -38,6 +38,7 @@ class ToolBridge:
 
 class ClaudeCodeBackend:
     name = "claude_code"
+    label = "Claude·구독"
 
     def __init__(self, config: LLMConfig, bridge: ToolBridge, user_name: str, workdir: Path) -> None:
         self.config = config

@@ -99,17 +99,38 @@ python3 scripts/measure_cpu.py --seconds 60
 ## 3. AI 연결 (Phase 2)
 
 자비스의 기본은 **AI 없이 로컬에서 처리하는 명령**(시간, 날짜, 상태, 인사 등)이에요. 무료이고 빨라요.
-로컬로 답할 수 없는 질문만 Claude API로 보내요. **API 키가 없으면 자동으로 `off`(로컬 명령만)로 동작**하니,
-키는 나중에 넣어도 돼요. 연결 방법은 `config.yaml`의 `llm.backend`로 바꿀 수 있어요.
+로컬로 답할 수 없는 질문만 AI로 보내요. 기본 AI는 **Google Gemini 무료 등급**이고,
+**API 키가 없으면 자동으로 `off`(로컬 명령만)로 동작**하니 키는 나중에 넣어도 돼요.
+연결 방법은 `config.yaml`의 `llm.backend`로 바꿀 수 있어요.
 
 | `llm.backend` | 비용 | 준비물 |
 |---|---|---|
-| `api` (기본) | 로컬로 못 한 질문만 토큰당 과금 (Haiku 기준 대략 월 1–3달러) | API 키 + 크레딧 (3.2). 키가 없으면 `off`처럼 동작 |
+| `openai_compat` (기본, Gemini) | 무료 등급 (분당·하루 요청 수 제한) | Gemini API 키 (3.0). 다른 무료 서비스도 가능 (3.3) |
 | `off` | 무료 | 없음 — 로컬 명령만 동작 |
+| `api` | Claude, 토큰당 과금 (Haiku 기준 대략 월 1–3달러) | API 키 + 크레딧 (3.2) |
 | `claude_code` | 구독(Pro/Max) 사용량 안에서 추가 결제 없음 | **개발 맥 전용** (macOS 13+). Claude Code 설치 + 로그인 (3.1) |
 
-화면 오른쪽 위 상태 표시줄에 `Claude·구독` / `Claude·API` / `Claude 꺼짐`으로 보여요.
-답변 아래에는 `로컬 처리` 또는 `Claude`가 작게 표시돼서 어떤 질문이 AI를 썼는지 알 수 있어요.
+화면 오른쪽 위 상태 표시줄에 `AI·Gemini` / `AI·Claude` / `AI 꺼짐`처럼 보여요.
+답변 아래에는 `로컬 처리` 또는 `Gemini`처럼 작게 표시돼서 어떤 질문이 AI를 썼는지 알 수 있어요.
+
+> **개인정보**: 무료 등급은 보낸 내용이 서비스 개선에 쓰일 수 있어요. 그래서 무료 AI에는 **일정 제목을 보내지 않고**
+> (예: "다음 일정: 22:30 (40분 후)"만 보냄), Phase 5부터는 **메일·슬랙 내용도 보내지 않아요.**
+> Claude(`api`)로 바꾸면 이 제한이 풀려요. 직접 정하려면 `llm.send_personal_data: true/false`.
+
+### 3.0 Gemini API 키 (기본, 무료)
+
+1. https://aistudio.google.com/apikey 에 Google 계정으로 로그인해요. (학교 계정은 막혀 있을 수 있어요 — 개인 Gmail 권장)
+2. **API 키 만들기(Create API key)** → 키를 복사해요. 결제 정보를 등록하지 않으면 무료 등급으로만 동작해요.
+3. 저장소 폴더의 `.env` 파일(`.env.example` 복사)에:
+   ```
+   GEMINI_API_KEY=붙여넣은키
+   ```
+4. 자비스를 다시 시작하면 상태 표시줄이 `AI·Gemini`로 바뀌어요. `T`를 누르고 "오늘 저녁 뭐 먹을까?"로 확인해 보세요.
+
+알아 둘 점
+- 무료 등급의 모델 이름과 한도는 자주 바뀌어요. 기본값 `gemini-flash-latest`는 항상 최신 Flash 모델을 가리키는 별칭이에요.
+  "AI 모델 이름을 확인해 주세요"라고 하면 AI Studio에서 쓸 수 있는 모델 이름을 `llm.openai_compat.model`에 적어 주세요.
+- 한도에 걸리면 자비스가 "무료 사용량 한도에 걸렸어요"라고 말해요. 로컬 명령은 계속 돼요.
 
 ### 3.1 Claude Code (구독으로 쓰기, 개발 맥 전용)
 
@@ -148,7 +169,27 @@ python3 scripts/measure_cpu.py --seconds 60
    ANTHROPIC_API_KEY=sk-ant-...
    ```
    `.env`는 git에 올라가지 않아요.
-5. `config.yaml`의 `llm.backend`는 기본값이 이미 `api`예요. 자비스를 다시 시작하면 상태 표시줄이 `Claude·API`로 바뀌어요.
+5. `config.yaml`에서 `llm.backend: api`로 바꾸고 다시 시작하면 상태 표시줄이 `AI·Claude`로 바뀌어요.
+
+### 3.3 다른 무료 서비스 (선택)
+
+모두 같은 방식(OpenAI 호환)이라 `config.yaml`만 바꾸면 돼요. 무료 조건과 모델 이름은 가입할 때 확인하세요.
+
+| provider | 키 (`.env`) | `model` 예시 | 비고 |
+|---|---|---|---|
+| `gemini` (기본) | `GEMINI_API_KEY` | 생략 가능 (`gemini-flash-latest`) | 한국어 좋음 |
+| `groq` | `GROQ_API_KEY` | Groq 콘솔의 모델 목록에서 선택 | 매우 빠름, 한국어 보통 |
+| `openrouter` | `OPENROUTER_API_KEY` | 이름이 `:free`로 끝나는 모델 | 하루 요청 수 제한 |
+| `github` | `GITHUB_TOKEN` | GitHub Models 목록에서 선택 | 시험용 |
+| `ollama` | 필요 없음 | 예: `qwen2.5:3b` (직접 받은 모델) | 내 컴퓨터에서 실행. 책상 맥에서는 너무 느려요 |
+
+```yaml
+llm:
+  backend: openai_compat
+  openai_compat:
+    provider: groq
+    model: 여기에-모델-이름
+```
 
 ## 4. 음성 (Phase 2)
 

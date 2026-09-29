@@ -80,30 +80,37 @@ class JarvisApp:
         )
 
     def _make_backend(self) -> LLMBackend:
-        name = self.llm_backend_name
-        if name == "api":
-            if not os.environ.get("ANTHROPIC_API_KEY"):
-                # Local commands are the foundation; the API is an optional add-on.
-                log.info("no ANTHROPIC_API_KEY; running with local commands only (llm off)")
-                name = "off"
-            else:
-                from jarvis.brain.backends.api import ApiBackend
+        from jarvis.brain.backends.simple import MockBackend, OffBackend
 
-                return ApiBackend(self.config.llm, self.tools, self.config.user_name)
-        if name == "claude_code":
+        name = self.llm_backend_name
+        backend: LLMBackend
+        if name == "openai_compat":
+            from jarvis.brain.backends.openai_compat import OpenAICompatBackend
+
+            backend = OpenAICompatBackend(self.config.llm, self.tools, self.config.user_name)
+            problem = backend.problem()
+        elif name == "api":
+            from jarvis.brain.backends.api import ApiBackend
+
+            backend = ApiBackend(self.config.llm, self.tools, self.config.user_name)
+            problem = None if os.environ.get("ANTHROPIC_API_KEY") else "ANTHROPIC_API_KEY is not set"
+        elif name == "claude_code":
             from jarvis.brain.backends.claude_code import ClaudeCodeBackend, ToolBridge
 
             server = self.config.server
             bridge = ToolBridge(f"http://{server.host}:{server.port}", self.tool_token)
             workdir = default_data_dir() / "claude-workdir"
             return ClaudeCodeBackend(self.config.llm, bridge, self.config.user_name, workdir)
-        if name == "mock":
-            from jarvis.brain.backends.simple import MockBackend
-
+        elif name == "mock":
             return MockBackend()
-        from jarvis.brain.backends.simple import OffBackend
+        else:
+            return OffBackend()
 
-        return OffBackend()
+        if problem:
+            # Local commands are the foundation; an unconfigured AI simply means "off".
+            log.info("%s backend not configured (%s); running with local commands only", name, problem)
+            return OffBackend()
+        return backend
 
     def _make_voice(self):
         from jarvis.voice import stt as stt_module
@@ -146,8 +153,7 @@ class JarvisApp:
         await self.brain.publish_usage()
         if self.brain.backend.availability() == "error":
             hint = {
-                "claude_code": "install Claude Code and log in (needs macOS 13+), or set llm.backend to api/off",
-                "api": "set ANTHROPIC_API_KEY in .env, or set llm.backend to claude_code/off",
+                "claude_code": "install Claude Code and log in (needs macOS 13+), or change llm.backend",
             }.get(self.brain.backend.name, "")
             log.warning("LLM backend %s is not usable: %s", self.brain.backend.name, hint)
         if self.voice:

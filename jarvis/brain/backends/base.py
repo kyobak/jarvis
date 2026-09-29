@@ -30,6 +30,7 @@ class LLMRetryableError(LLMError):
 
 class LLMBackend(Protocol):
     name: str
+    label: str  # shown in the UI, e.g. "Gemini"
 
     def availability(self) -> str:
         """Status chip value: ok | error | disabled | mock."""

@@ -21,6 +21,7 @@ MAX_TOOL_ROUNDS = 4
 
 class ApiBackend:
     name = "api"
+    label = "Claude"
 
     def __init__(self, config: LLMConfig, tools: ToolRegistry, user_name: str, client: Any = None) -> None:
         self.config = config
