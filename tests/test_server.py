@@ -32,7 +32,7 @@ def test_dev_state_switch_is_broadcast(mock_app, tmp_path):
 
 def test_dev_commands_ignored_outside_dev_mode(tmp_path, monkeypatch):
     monkeypatch.setenv("JARVIS_DATA_DIR", str(tmp_path))
-    app = JarvisApp(Config(), mock=False, db_path=str(tmp_path / "j.db"), voice="mock")
+    app = JarvisApp(Config(), mock=False, db_path=str(tmp_path / "j.db"), voice="mock", vision="off")
     with TestClient(create_app(app, ui_dist=tmp_path)) as client:
         with client.websocket_connect("/ws") as ws:
             ws.send_json({"type": "dev", "payload": {"action": "state", "value": "alert"}})
@@ -54,7 +54,7 @@ def _app(tmp_path, name, backend=None):
     cfg = Config()
     if backend:
         cfg.llm.backend = backend
-    return JarvisApp(cfg, mock=False, db_path=str(tmp_path / f"{name}.db"), voice="mock")
+    return JarvisApp(cfg, mock=False, db_path=str(tmp_path / f"{name}.db"), voice="mock", vision="off")
 
 
 def test_ai_backends_fall_back_to_off_without_key(tmp_path, monkeypatch):

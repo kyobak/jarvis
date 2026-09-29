@@ -20,6 +20,35 @@ def has_batchim(word: str) -> bool:
     return False
 
 
+def _final_rieul(word: str) -> bool:
+    """Last syllable ends in ㄹ (takes 로, not 으로)."""
+    for ch in reversed(word.strip()):
+        if "가" <= ch <= "힣":
+            return (ord(ch) - 0xAC00) % 28 == 8
+        if ch.isdigit():
+            return ch in "178"  # 일, 칠, 팔
+        if ch.isascii() and ch.isalpha():
+            return ch.lower() == "l"
+        if ch.isalpha():
+            return False
+    return False
+
+
+def obj(word: str) -> str:
+    """word + 을/를."""
+    return f"{word}{'을' if has_batchim(word) else '를'}"
+
+
+def subj(word: str) -> str:
+    """word + 이/가."""
+    return f"{word}{'이' if has_batchim(word) else '가'}"
+
+
+def euro(word: str) -> str:
+    """word + 으로/로."""
+    return f"{word}{'으로' if has_batchim(word) and not _final_rieul(word) else '로'}"
+
+
 def copula(word: str) -> str:
     """word + 이에요/예요."""
     return f"{word}{'이에요' if has_batchim(word) else '예요'}"

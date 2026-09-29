@@ -37,13 +37,13 @@ class ApiBackend:
     def reset(self) -> None:
         self.history.clear()
 
-    async def respond(self, utterance: str, ctx: Context) -> LLMResult:
-        turn = {"role": "user", "content": user_turn(ctx, utterance)}
-        messages: list[dict[str, Any]] = [*self.history, turn]
+    async def respond(self, utterance: str, ctx: Context, use_tools: bool = True) -> LLMResult:
+        turn = {"role": "user", "content": user_turn(ctx, utterance) if use_tools else utterance}
+        messages: list[dict[str, Any]] = [*self.history, turn] if use_tools else [turn]
         result = LLMResult("")
 
         for _ in range(MAX_TOOL_ROUNDS + 1):
-            response = await self._create(messages)
+            response = await self._create(messages, use_tools)
             result.input_tokens += response.usage.input_tokens
             result.output_tokens += response.usage.output_tokens
 
@@ -68,7 +68,8 @@ class ApiBackend:
 
         if not result.text:
             result.text = "죄송해요, 뭐라고 답해야 할지 모르겠어요."
-        self._remember(turn, result.text)
+        if use_tools:
+            self._remember(turn, result.text)
         return result
 
     def _remember(self, turn: dict[str, Any], answer: str) -> None:
@@ -77,14 +78,15 @@ class ApiBackend:
         keep = self.config.history_turns * 2
         self.history = self.history[-keep:]
 
-    async def _create(self, messages: list[dict[str, Any]]) -> Any:
+    async def _create(self, messages: list[dict[str, Any]], use_tools: bool = True) -> Any:
+        extra: dict[str, Any] = {"tools": self.tools.for_messages_api()} if use_tools else {}
         try:
             return await self.client.messages.create(
                 model=self.config.default_model,
                 max_tokens=self.config.max_tokens,
                 system=self.system,
-                tools=self.tools.for_messages_api(),
                 messages=messages,
+                **extra,
             )
         except (anthropic.AuthenticationError, anthropic.PermissionDeniedError) as e:
             raise LLMError(str(e), "Claude API 키를 확인해 주세요.") from e

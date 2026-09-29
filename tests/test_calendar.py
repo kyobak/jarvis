@@ -195,7 +195,7 @@ async def test_callback_route_end_to_end(tmp_path, monkeypatch, google):
     from jarvis.server.app import create_app
 
     monkeypatch.setenv("JARVIS_DATA_DIR", str(tmp_path))
-    app = JarvisApp(Config(), mock=False, db_path=str(tmp_path / "a.db"), voice="mock")
+    app = JarvisApp(Config(), mock=False, db_path=str(tmp_path / "a.db"), voice="mock", vision="off")
     app.oauth["google"] = google[1]
     connected = []
 

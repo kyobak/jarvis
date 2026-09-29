@@ -74,3 +74,11 @@ def test_helpers():
     assert squash("지금 몇 시야?!") == "지금몇시야"
     assert has_batchim("분") and not has_batchim("시")
     assert copula("화요일") == "화요일이에요" and copula("9시") == "9시예요"
+
+
+def test_particles():
+    from jarvis.core.korean import euro, obj, subj
+
+    assert obj("플레이리스트") == "플레이리스트를" and obj("곡") == "곡을"
+    assert subj("메일") == "메일이" and subj("슬랙 메시지") == "슬랙 메시지가"
+    assert euro("55") == "55로" and euro("30") == "30으로" and euro("서울") == "서울로" and euro("집") == "집으로"

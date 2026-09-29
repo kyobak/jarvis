@@ -108,13 +108,14 @@ class OpenAICompatBackend:
             for t in self.tools.describe()
         ]
 
-    async def respond(self, utterance: str, ctx: Context) -> LLMResult:
-        turn = {"role": "user", "content": user_turn(ctx, utterance)}
-        messages: list[dict[str, Any]] = [{"role": "system", "content": self.system}, *self.history, turn]
+    async def respond(self, utterance: str, ctx: Context, use_tools: bool = True) -> LLMResult:
+        turn = {"role": "user", "content": user_turn(ctx, utterance) if use_tools else utterance}
+        history = self.history if use_tools else []
+        messages: list[dict[str, Any]] = [{"role": "system", "content": self.system}, *history, turn]
         result = LLMResult("")
 
         for _ in range(MAX_TOOL_ROUNDS + 1):
-            data = await self._post(messages)
+            data = await self._post(messages, use_tools)
             usage = data.get("usage") or {}
             result.input_tokens += int(usage.get("prompt_tokens") or 0)
             result.output_tokens += int(usage.get("completion_tokens") or 0)
@@ -146,18 +147,19 @@ class OpenAICompatBackend:
 
         if not result.text:
             result.text = "죄송해요, 뭐라고 답해야 할지 모르겠어요."
-        self.history += [turn, {"role": "assistant", "content": result.text}]
-        self.history = self.history[-self.config.history_turns * 2 :]
+        if use_tools:
+            self.history += [turn, {"role": "assistant", "content": result.text}]
+            self.history = self.history[-self.config.history_turns * 2 :]
         return result
 
-    async def _post(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
+    async def _post(self, messages: list[dict[str, Any]], use_tools: bool = True) -> dict[str, Any]:
         body: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "max_tokens": self.config.openai_compat.max_tokens,
             **self.config.openai_compat.extra_body,
         }
-        tools = self._tool_specs()
+        tools = self._tool_specs() if use_tools else []
         if tools:
             body["tools"] = tools
         headers = {"Authorization": f"Bearer {self.api_key}"} if self.api_key else {}

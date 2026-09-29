@@ -36,7 +36,9 @@ class LLMBackend(Protocol):
         """Status chip value: ok | error | disabled | mock."""
         ...
 
-    async def respond(self, utterance: str, ctx: Context) -> LLMResult: ...
+    async def respond(self, utterance: str, ctx: Context, use_tools: bool = True) -> LLMResult:
+        """use_tools=False: no tools and no conversation memory (for untrusted content)."""
+        ...
 
     def reset(self) -> None:
         """Forget the conversation."""

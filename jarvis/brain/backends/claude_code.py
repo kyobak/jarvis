@@ -72,7 +72,7 @@ class ClaudeCodeBackend:
     def reset(self) -> None:
         self.session_id = None
 
-    def command(self) -> list[str]:
+    def command(self, use_tools: bool = True) -> list[str]:
         cmd = [
             self.config.claude_code_path,
             "-p",
@@ -81,18 +81,20 @@ class ClaudeCodeBackend:
             "--system-prompt", self.system,
             "--tools", "",
             "--strict-mcp-config",
-            "--mcp-config", str(self.mcp_config),
-            "--allowedTools", f"mcp__{MCP_SERVER_NAME}",
         ]
+        if not use_tools:
+            # Untrusted content: no MCP servers at all, and a throwaway session.
+            return cmd + ["--no-session-persistence"]
+        cmd += ["--mcp-config", str(self.mcp_config), "--allowedTools", f"mcp__{MCP_SERVER_NAME}"]
         if self.session_id:
             cmd += ["--resume", self.session_id]
         return cmd
 
-    async def respond(self, utterance: str, ctx: Context) -> LLMResult:
-        prompt = user_turn(ctx, utterance)
+    async def respond(self, utterance: str, ctx: Context, use_tools: bool = True) -> LLMResult:
+        prompt = user_turn(ctx, utterance) if use_tools else utterance
         try:
             proc = await asyncio.create_subprocess_exec(
-                *self.command(),
+                *self.command(use_tools),
                 cwd=self.workdir,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
@@ -114,7 +116,7 @@ class ClaudeCodeBackend:
             self._raise_for(detail.strip())
 
         assert data is not None
-        if data.get("session_id"):
+        if use_tools and data.get("session_id"):
             self.session_id = data["session_id"]
         usage = data.get("usage") or {}
         text = str(data.get("result") or "").strip() or "죄송해요, 뭐라고 답해야 할지 모르겠어요."

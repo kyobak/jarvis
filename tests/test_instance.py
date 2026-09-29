@@ -14,6 +14,7 @@ def test_stale_pidfile_for_unrelated_process_is_ignored(tmp_path):
         assert sleeper.poll() is None
     finally:
         sleeper.kill()
+        sleeper.wait()
 
 
 def test_claim_and_release(tmp_path):

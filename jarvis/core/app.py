@@ -1,4 +1,4 @@
-"""Wires config, bus, storage, brain, voice, and the active world together."""
+"""Wires config, storage, brain, voice, vision, and the integrations together."""
 
 from __future__ import annotations
 
@@ -8,25 +8,48 @@ import secrets
 from datetime import datetime
 from typing import Any
 
+import httpx2
+
 from jarvis.brain.backends.base import LLMBackend
 from jarvis.brain.brain import Brain
 from jarvis.brain.context import Context
 from jarvis.brain.tools import Tool, ToolRegistry, schema
+from jarvis.core.announcer import Announcer
 from jarvis.core.config import Config, default_data_dir
 from jarvis.core.core_state import CoreStateMachine
 from jarvis.core.db import Database
-from jarvis.core.announcer import Announcer
-from jarvis.core.event_bus import EventBus
+from jarvis.core.event_bus import Event, EventBus
 from jarvis.core.presence import Presence
+from jarvis.core.secrets import SecretStore
 from jarvis.core.settings import Settings
 from jarvis.core.state import StateStore
-from jarvis.core.secrets import SecretStore
 from jarvis.core.status import StatusBoard
 from jarvis.integrations.oauth import OAuthClient
 from jarvis.skills.calendar import CalendarService
+from jarvis.skills.focus import FocusService
+from jarvis.skills.greeter import Greeter
+from jarvis.skills.messages import MessagesService
+from jarvis.skills.music import MusicService
 from jarvis.skills.reminders import ReminderService
 
 log = logging.getLogger(__name__)
+
+
+class LiveWorld:
+    """Real mode has no fake data; only the visual state override is available with --dev."""
+
+    def __init__(self, bus: EventBus) -> None:
+        self.bus = bus
+
+    async def start(self) -> None:
+        pass
+
+    async def stop(self) -> None:
+        pass
+
+    async def handle_dev(self, action: str, value: Any = None) -> None:
+        if action == "state":
+            await self.bus.publish("state", {"core": value})
 
 
 class JarvisApp:
@@ -52,82 +75,88 @@ class JarvisApp:
         self.llm_backend_name = llm or config.llm.backend
         self.vision_mode = vision or ("mock" if mock else "real")
         self.stt_name = stt or ("mock" if self.voice_mode == "mock" else config.voice.stt_engine)
+        data_dir = default_data_dir()
 
         self.bus = EventBus()
         self.store = StateStore(self.bus)
         # Mock runs never touch the real database (reminders, focus history, usage).
-        self.db = Database(db_path or (":memory:" if mock else default_data_dir() / "jarvis.db"))
+        self.db = Database(db_path or (":memory:" if mock else data_dir / "jarvis.db"))
         self.status = StatusBoard(self.bus, mock=mock, dev=self.dev, user_name=config.user_name)
         self.core = CoreStateMachine(self.bus)
-        self.settings = Settings(self.bus, config, None if mock else default_data_dir() / "settings.json")
+        self.settings = Settings(self.bus, config, None if mock else data_dir / "settings.json")
         self.presence = Presence(self.bus)
         self.announcer = Announcer(self.bus, self.settings, self.presence, self.clock)
         self.tool_token = secrets.token_urlsafe(24)
         self.tools = ToolRegistry()
-        self._register_tools()
-
+        self._register_status_tool()
         self.brain = Brain(config, self.store, self.db, self.status, self._make_backend(), clock=self.clock)
-
-        self.reminders = ReminderService(self.db, self.bus, self.announcer, self.clock)
-        self.reminders.register_tools(self.tools)
-        self.brain.add_handler("reminders", self.reminders)
+        self.personal_ok = config.llm.personal_data_allowed(self.brain.backend.name)
 
         # Integrations: one HTTP client, tokens in the Keychain, OAuth via /auth/<name>.
-        import httpx2
-
         self.http = httpx2.AsyncClient(timeout=20)
-        data_dir = default_data_dir()
         self.secrets = SecretStore(None if mock else data_dir / "secrets.json", use_keyring=not mock)
         self.oauth: dict[str, OAuthClient] = {}
-        redirect = f"http://{config.server.host}:{config.server.port}/callback"
-        google = None
-        if not mock:
-            from jarvis.integrations.google import make_google_oauth
+        self._setup_oauth(data_dir)
 
-            google = make_google_oauth(data_dir / "google_client_secret.json", self.secrets, self.http, f"{redirect}/google")
-            if google:
-                self.oauth["google"] = google
+        self.reminders = ReminderService(self.db, self.bus, self.announcer, self.clock)
+        google = self.oauth.get("google")
         self.calendar = CalendarService(
             self.db, self.bus, self.status, self.announcer, self.presence, self.settings, self.clock,
             source=self._calendar_source() if google and google.has_token() else None,
             configured=google is not None,
         )
-        self.brain.add_handler("calendar", self.calendar)
-        self.personal_ok = config.llm.personal_data_allowed(self.brain.backend.name)
-        if self.personal_ok:
+        self.focus = FocusService(self.db, self.bus, self.announcer, self.clock)
+        self.messages = self._make_messages()
+        self.music = self._make_music()
+        self.greeter = Greeter(
+            self.announcer, self.settings, self.clock, config.user_name,
+            upcoming=self.calendar.upcoming, unread=self.messages.unread,
+            today_events=lambda now: self.calendar.between(now.replace(hour=0, minute=0), now.replace(hour=23, minute=59)),
+        )
+        from jarvis.vision.enroll import profile_path
+        from jarvis.vision.service import VisionService
+
+        self.vision = VisionService(
+            config, self.bus, self.status, self.presence, self.announcer, self.settings,
+            self.focus, self.greeter, self.clock, self.vision_mode, profile_path(),
+        )
+
+        # Local fast paths, tried in order before the LLM.
+        for name, skill in (("reminders", self.reminders), ("calendar", self.calendar), ("focus", self.focus),
+                            ("music", self.music), ("messages", self.messages)):
+            self.brain.add_handler(name, skill)
+        self.reminders.register_tools(self.tools)
+        self.focus.register_tools(self.tools)
+        self.music.register_tools(self.tools)
+        if self.personal_ok:  # tools that return schedule titles or message content
             self.calendar.register_tools(self.tools)
+            self.messages.register_tools(self.tools)
 
         if mock:
             from jarvis.mocks.world import MockWorld
 
-            self.world = MockWorld(self)
+            self.world: Any = MockWorld(self)
         else:
-            from jarvis.world import LiveWorld
-
-            self.world = LiveWorld(config, self.bus, self.status)
+            self.world = LiveWorld(self.bus)
 
         self.voice = self._make_voice() if enable_voice else None
         if self.voice:
             self.announcer.speaker = self.voice.announce
+            self.voice.on_speech_start.append(self.music.duck)
+            self.voice.on_speech_end.append(self.music.unduck)
+        self.vision.on_wake_alarm.append(self.music.wake_up)
+        self.focus.on_nap_end.append(self.music.wake_up)
+        self.bus.subscribe("settings", self._on_settings)
+        self._camera_paused = self.settings["camera_paused"]
 
     def clock(self) -> datetime:
         return datetime.now(self.config.tz)
 
-    def _calendar_source(self):
-        from jarvis.integrations.google import GoogleCalendarSource
-
-        return GoogleCalendarSource(self.oauth["google"], self.config.calendar.google_calendar_ids, self.config.tz)
-
-    async def oauth_connected(self, name: str) -> None:
-        """A provider finished its browser flow: start the integrations that use it."""
-        if name == "google":
-            await self.calendar.connected(self._calendar_source())
-
     # ---- construction helpers -------------------------------------------------
 
-    def _register_tools(self) -> None:
+    def _register_status_tool(self) -> None:
         async def get_status(_: dict[str, Any]) -> dict[str, Any]:
-            ctx = Context.build(self.store, self.brain.clock(), self.config.user_name)
+            ctx = Context.build(self.store, self.clock(), self.config.user_name)
             return ctx.status_summary()
 
         self.tools.register(
@@ -138,6 +167,63 @@ class JarvisApp:
                 get_status,
             )
         )
+
+    def _setup_oauth(self, data_dir) -> None:
+        if self.mock:
+            return
+        from jarvis.integrations.google import make_google_oauth
+        from jarvis.integrations.spotify import make_spotify_oauth
+
+        base = f"http://{self.config.server.host}:{self.config.server.port}/callback"
+        google = make_google_oauth(data_dir / "google_client_secret.json", self.secrets, self.http, f"{base}/google")
+        if google:
+            self.oauth["google"] = google
+        spotify_id = os.environ.get("SPOTIFY_CLIENT_ID", "").strip()
+        if spotify_id:
+            self.oauth["spotify"] = make_spotify_oauth(spotify_id, self.secrets, self.http, f"{base}/spotify")
+
+    def _calendar_source(self):
+        from jarvis.integrations.google import GoogleCalendarSource
+
+        return GoogleCalendarSource(self.oauth["google"], self.config.calendar.google_calendar_ids, self.config.tz)
+
+    def _make_messages(self) -> MessagesService:
+        mc = self.config.messages
+        poll = {"gmail": mc.gmail_poll_min * 60, "slack": mc.slack_poll_min * 60}
+        if self.mock:
+            from jarvis.mocks.sources import MockInbox
+
+            now = self.clock()
+            sources = {"gmail": MockInbox("gmail", now), "slack": MockInbox("slack", now)}
+            configured = {"gmail": True, "slack": True}
+            poll = {"gmail": 60, "slack": 60}
+        else:
+            from jarvis.integrations.gmail import GmailSource
+            from jarvis.integrations.slack import SlackSource
+
+            google = self.oauth.get("google")
+            slack_token = os.environ.get("SLACK_USER_TOKEN", "").strip() or self.secrets.get("slack_user_token")
+            sources = {
+                "gmail": GmailSource(google) if google and google.has_token() else None,
+                "slack": SlackSource(slack_token, self.http) if slack_token else None,
+            }
+            configured = {"gmail": google is not None, "slack": bool(slack_token)}
+        summarizer = self.brain.summarize if self.personal_ok else None
+        return MessagesService(self.bus, self.status, self.announcer, self.presence, self.settings,
+                               sources, poll, configured, summarizer)
+
+    def _make_music(self) -> MusicService:
+        aliases = self.config.spotify.aliases
+        if self.mock:
+            from jarvis.mocks.sources import MockPlayer, MockSearch
+
+            return MusicService(self.bus, self.status, MockPlayer(), aliases, MockSearch(), True)
+        from jarvis.integrations.spotify import AppleScriptSpotify, SpotifySearch
+
+        player = AppleScriptSpotify() if AppleScriptSpotify.available() else None
+        oauth = self.oauth.get("spotify")
+        search = SpotifySearch(oauth) if oauth and oauth.has_token() else None
+        return MusicService(self.bus, self.status, player, aliases, search, oauth is not None)
 
     def _make_backend(self) -> LLMBackend:
         from jarvis.brain.backends.simple import MockBackend, OffBackend
@@ -204,8 +290,8 @@ class JarvisApp:
 
     async def start(self) -> None:
         log.info(
-            "starting jarvis (mock=%s, dev=%s, voice=%s, llm=%s, stt=%s)",
-            self.mock, self.dev, self.voice_mode, self.llm_backend_name, self.stt_name,
+            "starting jarvis (mock=%s, voice=%s, vision=%s, llm=%s, stt=%s)",
+            self.mock, self.voice_mode, self.vision_mode, self.brain.backend.name, self.stt_name,
         )
         await self.status.publish()
         await self.core.publish_current()
@@ -216,24 +302,45 @@ class JarvisApp:
 
             await seed_reminders(self.reminders, self.clock())
         await self.calendar.start(mock=self.mock)
+        await self.focus.publish()
+        await self.messages.start()
+        await self.music.start()
         await self.world.start()
         await self.brain.publish_usage()
         if self.brain.backend.availability() == "error":
-            hint = {
-                "claude_code": "install Claude Code and log in (needs macOS 13+), or change llm.backend",
-            }.get(self.brain.backend.name, "")
-            log.warning("LLM backend %s is not usable: %s", self.brain.backend.name, hint)
+            log.warning("LLM backend %s is not usable; check its setup", self.brain.backend.name)
+        await self.vision.start()
         if self.voice:
             await self.voice.start()
 
     async def stop(self) -> None:
         if self.voice:
             await self.voice.stop()
-        await self.reminders.stop()
-        await self.calendar.stop()
-        await self.world.stop()
+        for service in (self.vision, self.music, self.messages, self.calendar, self.reminders, self.world):
+            try:
+                await service.stop()
+            except Exception:
+                log.exception("stopping %s failed", type(service).__name__)
         await self.http.aclose()
         self.db.close()
+
+    async def oauth_connected(self, name: str) -> None:
+        """A provider finished its browser flow: start the integrations that use it."""
+        if name == "google":
+            from jarvis.integrations.gmail import GmailSource
+
+            await self.calendar.connected(self._calendar_source())
+            await self.messages.connected("gmail", GmailSource(self.oauth["google"]))
+        elif name == "spotify":
+            from jarvis.integrations.spotify import SpotifySearch
+
+            self.music.search = SpotifySearch(self.oauth["spotify"])
+
+    async def _on_settings(self, event: Event) -> None:
+        paused = bool(event.payload.get("camera_paused"))
+        if paused != self._camera_paused:
+            self._camera_paused = paused
+            await self.vision.set_paused(paused)
 
     async def handle_client(self, message: dict[str, Any]) -> None:
         """Messages sent from the UI over the WebSocket."""
@@ -254,6 +361,10 @@ class JarvisApp:
             changes = payload.get("changes")
             if isinstance(changes, dict):
                 await self.settings.update(changes)
+        elif kind == "music":
+            action = str(payload.get("action", ""))
+            if action in ("play", "pause", "next", "previous"):
+                await self.music.control(action)
         elif kind == "dev":
             if not self.dev:
                 log.warning("ignoring dev command outside dev mode")
